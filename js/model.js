@@ -1,0 +1,389 @@
+// Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
+import { addMonths, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js';
+import { SEED_CATEGORIES } from './schema.js';
+
+export const AJUSTES = 'cat_ajustes';
+export const FORMAS = [
+  { id: 'pix', nome: 'Pix' }, { id: 'debito', nome: 'Débito' }, { id: 'dinheiro', nome: 'Dinheiro' },
+  { id: 'boleto', nome: 'Boleto' }, { id: 'cartao', nome: 'Cartão' },
+];
+export const formaNome = f => (FORMAS.find(x => x.id === f) || { nome: f === 'ajuste' ? 'Ajuste' : f }).nome;
+
+const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'para', 'pra', 'com', 'sem', 'por', 'uma', 'um', 'que', 'nos', 'nas', 'aos', 'pro', 'meu', 'minha', 'hoje', 'ontem', 'amanha']);
+
+// ---------- Acesso aos dados ----------
+export const cfg = (S, k) => (S.find('Config', k) || {}).valor;
+export const categorias = (S, { tipo, todas = false } = {}) => S.get('Categorias')
+  .filter(c => (todas || !c.arquivada) && (!tipo || c.tipo === tipo))
+  .sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || a.nome.localeCompare(b.nome));
+export const categoria = (S, id) => S.find('Categorias', id);
+export const cartoes = (S, todos = false) => S.get('Cartoes').filter(c => todos || c.ativo).sort((a, b) => a.nome.localeCompare(b.nome));
+export const cartao = (S, id) => S.find('Cartoes', id);
+
+export const signOf = tipo => (tipo === 'entrada' ? 1 : -1);
+export const sign = l => signOf(l.tipo);
+
+// ---------- Cartões e faturas (N13) ----------
+// Compra até o dia anterior ao fechamento: fatura que fecha naquele mês.
+// No dia do fechamento ou depois: fatura seguinte. Mês da fatura = mês do vencimento.
+export function faturaInfo(card, dataCompra) {
+  const { y, m } = parseISO(dataCompra);
+  let fech = dateOf(y, m, card.dia_fechamento);
+  if (dataCompra >= fech) fech = dateOf(y, m + 1, card.dia_fechamento);
+  const f = parseISO(fech);
+  const venc = card.dia_vencimento > card.dia_fechamento
+    ? dateOf(f.y, f.m, card.dia_vencimento)
+    : dateOf(f.y, f.m + 1, card.dia_vencimento);
+  const mes = monthOf(venc);
+  return { id: `${card.id}_${mes}`, cartao_id: card.id, mes, data_fechamento: fech, data_vencimento: venc };
+}
+
+export function faturaInfoFromId(S, faturaId) {
+  const f = S.find('Faturas', faturaId);
+  if (f) return f;
+  const idx = faturaId.lastIndexOf('_');
+  const cardId = faturaId.slice(0, idx), mes = faturaId.slice(idx + 1);
+  const card = cartao(S, cardId);
+  if (!card) return null;
+  const [y, mm] = mes.split('-').map(Number);
+  const venc = dateOf(y, mm, card.dia_vencimento);
+  const fech = card.dia_vencimento > card.dia_fechamento ? dateOf(y, mm, card.dia_fechamento) : dateOf(y, mm - 1, card.dia_fechamento);
+  return { id: faturaId, cartao_id: cardId, mes, data_fechamento: fech, data_vencimento: venc, situacao: 'prevista', data_pagamento: '' };
+}
+
+// Valor que a fatura cobra: compras somam, créditos (ajuste a favor) subtraem.
+export const faturaTotal = (S, faturaId) => round2(S.get('Lancamentos')
+  .filter(l => l.fatura_id === faturaId).reduce((t, l) => t - sign(l) * l.valor, 0));
+
+export const faturaItens = (S, faturaId) => S.get('Lancamentos').filter(l => l.fatura_id === faturaId)
+  .sort((a, b) => a.data.localeCompare(b.data));
+
+export function faturasDoCartao(S, cardId) {
+  const ids = new Set(S.get('Faturas').filter(f => f.cartao_id === cardId).map(f => f.id));
+  S.get('Lancamentos').forEach(l => { if (l.cartao_id === cardId && l.fatura_id) ids.add(l.fatura_id); });
+  return [...ids].map(id => ({ ...faturaInfoFromId(S, id), total: faturaTotal(S, id) }))
+    .filter(f => f.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+// ---------- Orçamento ----------
+export function orcado(S, catId, mes) {
+  const r = S.find('Orcamento', `${catId}|${mes}`);
+  return r ? r.valor : null;
+}
+
+export function precisaOrcado(S, catId, mes) {
+  const c = categoria(S, catId);
+  if (!c || c.sistema || c.tipo === 'entrada') return false; // entradas e Ajustes não exigem orçado (N22)
+  return orcado(S, catId, mes) === null;
+}
+
+// Salvar orçado; "repetir" copia para os 12 meses seguintes preservando meses ajustados à mão (N21).
+export function setOrcado(S, catId, mes, valor, repetir = false) {
+  const rows = [{ categoria_id: catId, mes, valor: round2(valor), origem: 'manual' }];
+  if (repetir) {
+    for (let i = 1; i <= 12; i++) {
+      const m = addMonthKey(mes, i);
+      const ex = S.find('Orcamento', `${catId}|${m}`);
+      if (!ex || ex.origem !== 'manual') rows.push({ categoria_id: catId, mes: m, valor: round2(valor), origem: 'copiado' });
+    }
+  }
+  rows.forEach(r => S.upsert('Orcamento', r));
+}
+
+export function catMes(S, catId, mes) {
+  const c = categoria(S, catId);
+  const cs = c ? signOf(c.tipo) : -1;
+  let realizado = 0, previsto = 0;
+  S.get('Lancamentos').forEach(l => {
+    if (l.categoria_id !== catId || l.mes_orcamento !== mes) return;
+    const v = sign(l) === cs ? l.valor : -l.valor;
+    if (l.situacao === 'confirmado') realizado += v; else previsto += v;
+  });
+  const orc = orcado(S, catId, mes);
+  const o = orc ?? 0;
+  realizado = round2(realizado); previsto = round2(previsto);
+  return {
+    categoria: c, orcado: orc, realizado, previsto,
+    disponivel: round2(o - realizado - previsto),
+    uso: o > 0 ? (realizado + previsto) / o : (realizado + previsto > 0 ? Infinity : 0),
+  };
+}
+
+export function resumoMes(S, mes) {
+  const linhas = categorias(S, { todas: true })
+    .map(c => catMes(S, c.id, mes))
+    .filter(x => !x.categoria.arquivada || x.realizado || x.previsto || x.orcado);
+  const soma = (tipo, k) => round2(linhas.filter(x => x.categoria.tipo === tipo).reduce((t, x) => t + (x[k] || 0), 0));
+  const entradas = { orcado: soma('entrada', 'orcado'), realizado: soma('entrada', 'realizado'), previsto: soma('entrada', 'previsto') };
+  const saidas = { orcado: soma('saida', 'orcado'), realizado: soma('saida', 'realizado'), previsto: soma('saida', 'previsto') };
+  const guardado = soma('investimento', 'realizado');
+  const dispSaidas = round2(saidas.orcado - saidas.realizado - saidas.previsto);
+  return {
+    linhas, entradas, saidas, guardado,
+    percGuardado: entradas.realizado > 0 ? guardado / entradas.realizado : 0,
+    dispSaidas,
+  };
+}
+
+// ---------- Saldo, pendentes, fechamento ----------
+export function saldoAtual(S) {
+  const base = Number(cfg(S, 'saldo_inicial')) || 0;
+  const desde = cfg(S, 'data_saldo_inicial') || '0000-00-00';
+  let s = base;
+  S.get('Lancamentos').forEach(l => {
+    if (l.situacao === 'confirmado' && l.forma !== 'cartao' && l.data >= desde) s += sign(l) * l.valor;
+  });
+  S.get('Faturas').forEach(f => {
+    if (f.situacao === 'paga' && f.data_pagamento >= desde) s -= faturaTotal(S, f.id);
+  });
+  return round2(s);
+}
+
+export function pendentes(S, hoje = todayISO()) {
+  const lancs = S.get('Lancamentos').filter(l => l.situacao === 'previsto' && l.data <= hoje)
+    .map(l => ({ kind: 'lanc', item: l, data: l.data }));
+  const fats = [];
+  const vistos = new Set();
+  [...S.get('Faturas').map(f => f.id), ...S.get('Lancamentos').filter(l => l.fatura_id).map(l => l.fatura_id)].forEach(id => {
+    if (vistos.has(id)) return; vistos.add(id);
+    const f = faturaInfoFromId(S, id);
+    if (!f || f.situacao === 'paga' || f.data_vencimento > hoje) return;
+    const total = faturaTotal(S, id);
+    if (total <= 0) return;
+    fats.push({ kind: 'fatura', item: { ...f, total }, data: f.data_vencimento });
+  });
+  return [...lancs, ...fats].sort((a, b) => a.data.localeCompare(b.data));
+}
+
+// Fechamento previsto do mês atual (N26, exceção do mês atual):
+// parte do saldo de hoje e desconta só o que ainda falta acontecer.
+export function fechamentoMesAtual(S, hoje = todayISO()) {
+  const mes = monthOf(hoje);
+  const fim = lastDayOfMonth(mes);
+  let v = saldoAtual(S);
+  S.get('Lancamentos').forEach(l => {
+    if (l.situacao === 'previsto' && l.forma !== 'cartao' && l.data <= fim) v += sign(l) * l.valor;
+  });
+  const vistos = new Set();
+  [...S.get('Faturas').map(f => f.id), ...S.get('Lancamentos').filter(l => l.fatura_id).map(l => l.fatura_id)].forEach(id => {
+    if (vistos.has(id)) return; vistos.add(id);
+    const f = faturaInfoFromId(S, id);
+    if (f && f.situacao !== 'paga' && f.data_vencimento <= fim) v -= faturaTotal(S, id);
+  });
+  categorias(S).forEach(c => {
+    if (c.sistema) return;
+    const x = catMes(S, c.id, mes);
+    const resto = Math.max(0, x.disponivel);
+    v += c.tipo === 'entrada' ? resto : -resto;
+  });
+  return round2(v);
+}
+
+// ---------- Lançamentos e recorrências ----------
+export function mesOrcamento(S, l) {
+  if (l.forma === 'cartao' && l.fatura_id) return faturaInfoFromId(S, l.fatura_id)?.mes || monthOf(l.data);
+  return monthOf(l.data);
+}
+
+function dividir(total, n) {
+  const base = Math.floor((total * 100) / n) / 100;
+  const primeira = round2(total - base * (n - 1));
+  return Array.from({ length: n }, (_, i) => (i === 0 ? primeira : base));
+}
+
+// Monta os lançamentos de um rascunho (único, parcelado, mensal ou anual).
+export function montar(S, d, hoje = todayISO()) {
+  const card = d.forma === 'cartao' ? cartao(S, d.cartao_id) : null;
+  const rep = d.repeticao || 'unica';
+  const vezes = d.vezes ? Number(d.vezes) : null;
+  let datas = [], valores = [];
+  if (rep === 'parcelada') {
+    const n = Math.max(2, vezes || 2);
+    datas = Array.from({ length: n }, (_, i) => addMonths(d.data, i));
+    valores = dividir(d.valor, n);
+  } else if (rep === 'mensal' || rep === 'anual') {
+    const passo = rep === 'mensal' ? 1 : 12;
+    const limite = addMonths(hoje, 12);
+    for (let i = 0; ; i++) {
+      const dt = addMonths(d.data, i * passo);
+      if (vezes ? i >= vezes : (dt > limite && i > 0)) break;
+      datas.push(dt); valores.push(round2(d.valor));
+      if (i > 400) break;
+    }
+  } else {
+    datas = [d.data]; valores = [round2(d.valor)];
+  }
+  const recId = rep === 'unica' ? '' : uid('rec');
+  const primeiraSit = d.situacao || (d.data <= hoje ? 'confirmado' : 'previsto');
+  const lancs = datas.map((dt, i) => {
+    let fat = null;
+    if (card) {
+      fat = (i === 0 && d.fatura_id) ? faturaInfoFromId(S, d.fatura_id) : faturaInfo(card, dt);
+      if (rep === 'parcelada' && i > 0) fat = faturaInfo(card, dt);
+    }
+    // Parcelas de compra no cartão já aconteceram: seguem a situação da compra.
+    const sit = i === 0 ? primeiraSit : (rep === 'parcelada' && card ? primeiraSit : (dt <= hoje ? 'confirmado' : 'previsto'));
+    return {
+      id: d.id && i === 0 ? d.id : uid('lan'),
+      tipo: d.tipo, descricao: d.descricao, valor: valores[i], categoria_id: d.categoria_id,
+      forma: d.forma, cartao_id: card ? card.id : '', data: dt,
+      mes_orcamento: fat ? fat.mes : monthOf(dt),
+      fatura_id: fat ? fat.id : '', fatura_manual: !!(i === 0 && d.fatura_manual),
+      situacao: sit, recorrencia_id: recId, ocorrencia: recId ? i + 1 : null, valor_automatico: false,
+      _fatura: fat,
+    };
+  });
+  const rec = recId ? {
+    id: recId, repeticao: rep, total_ocorrencias: rep === 'parcelada' ? datas.length : vezes,
+    data_inicio: d.data, encerrada_em: '', valor_total: rep === 'parcelada' ? round2(d.valor) : null,
+    tipo: d.tipo, descricao: d.descricao, valor: rep === 'parcelada' ? null : round2(d.valor),
+    categoria_id: d.categoria_id, forma: d.forma, cartao_id: card ? card.id : '',
+  } : null;
+  return { rec, lancs };
+}
+
+function ensureFatura(S, fat) {
+  if (fat && !S.find('Faturas', fat.id)) {
+    S.upsert('Faturas', { id: fat.id, cartao_id: fat.cartao_id, mes: fat.mes, data_fechamento: fat.data_fechamento, data_vencimento: fat.data_vencimento, situacao: 'prevista', data_pagamento: '' });
+  }
+}
+
+// Previsto em mês sem orçado: o próprio valor vira o orçado daquele mês (N22).
+function orcadoAutomatico(S, l) {
+  if (precisaOrcado(S, l.categoria_id, l.mes_orcamento)) {
+    S.upsert('Orcamento', { categoria_id: l.categoria_id, mes: l.mes_orcamento, valor: l.valor, origem: 'previsto' });
+  }
+}
+
+export function salvarNovo(S, d, hoje = todayISO()) {
+  const { rec, lancs } = montar(S, d, hoje);
+  if (rec) S.upsert('Recorrencias', rec);
+  lancs.forEach((l, i) => {
+    ensureFatura(S, l._fatura);
+    delete l._fatura;
+    if (i > 0) orcadoAutomatico(S, l);
+    S.upsert('Lancamentos', l);
+  });
+  aprender(S, d.descricao, d.categoria_id);
+  return lancs;
+}
+
+// Edição de uma ocorrência (as demais da série não mudam nesta versão).
+export function salvarEdicao(S, original, d) {
+  const card = d.forma === 'cartao' ? cartao(S, d.cartao_id) : null;
+  let fat = null;
+  if (card) {
+    if (d.fatura_manual && d.fatura_id) fat = faturaInfoFromId(S, d.fatura_id);
+    else fat = faturaInfo(card, d.data);
+  }
+  const l = {
+    ...original,
+    tipo: d.tipo, descricao: d.descricao, valor: round2(d.valor), categoria_id: d.categoria_id,
+    forma: d.forma, cartao_id: card ? card.id : '', data: d.data,
+    fatura_id: fat ? fat.id : '', fatura_manual: !!(card && d.fatura_manual),
+    mes_orcamento: fat ? fat.mes : monthOf(d.data),
+    situacao: d.situacao || original.situacao,
+  };
+  ensureFatura(S, fat);
+  S.upsert('Lancamentos', l);
+  if (normalize(original.descricao) !== normalize(d.descricao) || original.categoria_id !== d.categoria_id) aprender(S, d.descricao, d.categoria_id);
+  return l;
+}
+
+// Excluir: só esta ocorrência, ou esta e as próximas (encerra a série).
+export function excluir(S, l, alcance = 'esta') {
+  if (alcance === 'proximas' && l.recorrencia_id) {
+    S.get('Lancamentos').filter(x => x.recorrencia_id === l.recorrencia_id && (x.ocorrencia || 0) >= (l.ocorrencia || 0))
+      .forEach(x => S.remove('Lancamentos', x.id));
+    const rec = S.find('Recorrencias', l.recorrencia_id);
+    if (rec) S.upsert('Recorrencias', { ...rec, encerrada_em: l.data });
+  } else {
+    S.remove('Lancamentos', l.id);
+  }
+}
+
+// Séries sem fim: mantém sempre 12 meses de ocorrências gravadas à frente.
+export function estenderRecorrencias(S, hoje = todayISO()) {
+  const limite = addMonths(hoje, 12);
+  S.get('Recorrencias').forEach(rec => {
+    if (rec.total_ocorrencias || rec.encerrada_em || rec.repeticao === 'parcelada') return;
+    const passo = rec.repeticao === 'anual' ? 12 : 1;
+    const ocs = S.get('Lancamentos').filter(l => l.recorrencia_id === rec.id);
+    let n = ocs.reduce((mx, l) => Math.max(mx, l.ocorrencia || 0), 0);
+    if (!n) return;
+    for (let guard = 0; guard < 60; guard++) {
+      const dt = addMonths(rec.data_inicio, n * passo);
+      if (dt > limite) break;
+      const { lancs } = montar(S, { ...rec, id: undefined, data: dt, repeticao: 'unica', situacao: 'previsto' }, hoje);
+      const l = { ...lancs[0], recorrencia_id: rec.id, ocorrencia: n + 1 };
+      ensureFatura(S, l._fatura); delete l._fatura;
+      orcadoAutomatico(S, l);
+      S.upsert('Lancamentos', l);
+      n++;
+    }
+  });
+}
+
+export function confirmar(S, l) {
+  S.upsert('Lancamentos', { ...l, situacao: 'confirmado' });
+}
+
+// Pagar fatura: valor cobrado diferente vira item na categoria Ajustes (N14).
+export function pagarFatura(S, faturaId, valorCobrado, dataPagamento) {
+  const f = faturaInfoFromId(S, faturaId);
+  const total = faturaTotal(S, faturaId);
+  const dif = round2(valorCobrado - total);
+  if (Math.abs(dif) >= 0.01) {
+    S.upsert('Lancamentos', {
+      id: uid('lan'), tipo: dif > 0 ? 'saida' : 'entrada', descricao: 'Ajuste da fatura', valor: Math.abs(dif),
+      categoria_id: AJUSTES, forma: 'cartao', cartao_id: f.cartao_id, data: dataPagamento, mes_orcamento: f.mes,
+      fatura_id: faturaId, fatura_manual: true, situacao: 'confirmado', recorrencia_id: '', ocorrencia: null, valor_automatico: false,
+    });
+  }
+  S.upsert('Faturas', { ...f, situacao: 'paga', data_pagamento: dataPagamento });
+}
+
+// Ajuste de saldo real (N19): a diferença vira lançamento em Ajustes.
+export function ajustarSaldo(S, saldoReal, hoje = todayISO()) {
+  const dif = round2(saldoReal - saldoAtual(S));
+  if (Math.abs(dif) < 0.01) return 0;
+  S.upsert('Lancamentos', {
+    id: uid('lan'), tipo: dif > 0 ? 'entrada' : 'saida', descricao: 'Ajuste de saldo', valor: Math.abs(dif),
+    categoria_id: AJUSTES, forma: 'ajuste', cartao_id: '', data: hoje, mes_orcamento: monthOf(hoje),
+    fatura_id: '', fatura_manual: false, situacao: 'confirmado', recorrencia_id: '', ocorrencia: null, valor_automatico: false,
+  });
+  return dif;
+}
+
+// ---------- Aprendizado de palavras (N04) ----------
+export function palavrasDe(texto) {
+  return [...new Set(normalize(texto).split(/[^a-z0-9]+/)
+    .filter(w => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w)))];
+}
+
+export function aprender(S, descricao, catId) {
+  if (!catId || catId === AJUSTES) return;
+  palavrasDe(descricao).forEach(p => {
+    const ex = S.find('Palavras', p);
+    if (ex && ex.categoria_id === catId) S.upsert('Palavras', { ...ex, usos: (ex.usos || 0) + 1 });
+    else S.upsert('Palavras', { palavra: p, categoria_id: catId, origem: 'aprendida', usos: 1 });
+  });
+}
+
+// ---------- Planilha nova ----------
+export function seedRows(objToRow, user) {
+  const now = new Date().toISOString();
+  const track = [user.email, now, user.email, now];
+  const hoje = todayISO();
+  const config = [['versao_esquema', 1], ['saldo_inicial', ''], ['data_saldo_inicial', hoje], ['criada_em', hoje]];
+  const cats = SEED_CATEGORIES.map((c, i) => objToRow('Categorias', {
+    id: c.id, nome: c.nome, tipo: c.tipo, repasse: false, dia_transferencia: null, sistema: !!c.sistema, arquivada: false, ordem: i + 1,
+    criado_por: track[0], criado_em: track[1], alterado_por: track[2], alterado_em: track[3],
+  }));
+  const pals = [];
+  SEED_CATEGORIES.forEach(c => c.palavras.forEach(p => pals.push(objToRow('Palavras', {
+    palavra: normalize(p), categoria_id: c.id, origem: 'inicial', usos: 0,
+    criado_por: track[0], criado_em: track[1], alterado_por: track[2], alterado_em: track[3],
+  }))));
+  return { Config: config, Categorias: cats, Palavras: pals };
+}
