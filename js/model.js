@@ -117,9 +117,11 @@ export function resumoMes(S, mes) {
   const entradas = { orcado: soma('entrada', 'orcado'), realizado: soma('entrada', 'realizado'), previsto: soma('entrada', 'previsto') };
   const saidas = { orcado: soma('saida', 'orcado'), realizado: soma('saida', 'realizado'), previsto: soma('saida', 'previsto') };
   const guardado = soma('investimento', 'realizado');
+  const guardadoPrevisto = soma('investimento', 'previsto');
+  const guardadoOrcado = soma('investimento', 'orcado');
   const dispSaidas = round2(saidas.orcado - saidas.realizado - saidas.previsto);
   return {
-    linhas, entradas, saidas, guardado,
+    linhas, entradas, saidas, guardado, guardadoPrevisto, guardadoOrcado,
     percGuardado: entradas.realizado > 0 ? guardado / entradas.realizado : 0,
     dispSaidas,
   };
@@ -139,8 +141,20 @@ export function saldoAtual(S) {
   return round2(s);
 }
 
+const ehParcelaCartao = (S, l) => l.forma === 'cartao' && l.recorrencia_id && S.find('Recorrencias', l.recorrencia_id)?.repeticao === 'parcelada';
+
+// Parcelas no cartão: a 1ª conta como realizada; as seguintes passam a realizadas quando a fatura delas fecha.
+// Não viram pendentes: resolvem-se sozinhas pela data de fechamento.
+export function sincronizarParcelas(S, hoje = todayISO()) {
+  S.get('Lancamentos').filter(l => ehParcelaCartao(S, l) && (l.ocorrencia || 1) > 1).forEach(l => {
+    const f = l.fatura_id ? faturaInfoFromId(S, l.fatura_id) : null;
+    const deve = f && f.data_fechamento <= hoje ? 'confirmado' : 'previsto';
+    if (l.situacao !== deve) S.upsert('Lancamentos', { ...l, situacao: deve });
+  });
+}
+
 export function pendentes(S, hoje = todayISO()) {
-  const lancs = S.get('Lancamentos').filter(l => l.situacao === 'previsto' && l.data <= hoje)
+  const lancs = S.get('Lancamentos').filter(l => l.situacao === 'previsto' && l.data <= hoje && !ehParcelaCartao(S, l))
     .map(l => ({ kind: 'lanc', item: l, data: l.data }));
   const fats = [];
   const vistos = new Set();
@@ -221,8 +235,8 @@ export function montar(S, d, hoje = todayISO()) {
       fat = (i === 0 && d.fatura_id) ? faturaInfoFromId(S, d.fatura_id) : faturaInfo(card, dt);
       if (rep === 'parcelada' && i > 0) fat = faturaInfo(card, dt);
     }
-    // Parcelas de compra no cartão já aconteceram: seguem a situação da compra.
-    const sit = i === 0 ? primeiraSit : (rep === 'parcelada' && card ? primeiraSit : (dt <= hoje ? 'confirmado' : 'previsto'));
+    // Parcelas no cartão: a primeira segue a compra; as seguintes ficam previstas até a fatura delas fechar.
+    const sit = i === 0 ? primeiraSit : (rep === 'parcelada' && card ? (fat && fat.data_fechamento <= hoje ? 'confirmado' : 'previsto') : (dt <= hoje ? 'confirmado' : 'previsto'));
     return {
       id: d.id && i === 0 ? d.id : uid('lan'),
       tipo: d.tipo, descricao: d.descricao, valor: valores[i], categoria_id: d.categoria_id,
@@ -304,6 +318,7 @@ export function excluir(S, l, alcance = 'esta') {
 
 // Séries sem fim: mantém sempre 12 meses de ocorrências gravadas à frente.
 export function estenderRecorrencias(S, hoje = todayISO()) {
+  sincronizarParcelas(S, hoje);
   const limite = addMonths(hoje, 12);
   S.get('Recorrencias').forEach(rec => {
     if (rec.total_ocorrencias || rec.encerrada_em || rec.repeticao === 'parcelada') return;

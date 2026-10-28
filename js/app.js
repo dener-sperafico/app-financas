@@ -375,9 +375,9 @@ function scrMes(mes) {
   return `${banners()}
     <div class="row" style="margin-bottom:14px"><a class="btn" href="#/mes/${addMonthKey(mes, -1)}" aria-label="Mês anterior">‹</a><h1>${cap(monthName(mes))}</h1><a class="btn" href="#/mes/${addMonthKey(mes, 1)}" aria-label="Mês seguinte">›</a></div>
     <div class="grid2">
-      <div class="card"><div class="label">Entradas</div><div class="big num">${money(res.entradas.realizado)}</div><div class="small muted">de ${money(res.entradas.orcado)} orçado</div></div>
+      <div class="card"><div class="label">Entradas</div><div class="big num">${money(res.entradas.realizado)}</div><div class="small muted">previsto ${money(res.entradas.previsto)} · orçado ${money(res.entradas.orcado)}</div></div>
       <div class="card"><div class="label">Saídas</div><div class="big num">${money(res.saidas.realizado)}</div><div class="small muted">previsto ${money(res.saidas.previsto)} · orçado ${money(res.saidas.orcado)}</div></div>
-      <div class="card"><div class="label">Guardado</div><div class="big num">${money(res.guardado)}</div><div class="small muted">${Math.round(res.percGuardado * 100)}% das entradas</div></div>
+      <div class="card"><div class="label">Guardado</div><div class="big num">${money(res.guardado)}</div><div class="small muted">previsto ${money(res.guardadoPrevisto)} · orçado ${money(res.guardadoOrcado)}${res.guardado ? ` · ${Math.round(res.percGuardado * 100)}% das entradas` : ''}</div></div>
       <div class="card"><div class="label">Disponível nas saídas</div><div class="big num ${res.dispSaidas < 0 ? 'neg' : ''}">${money(res.dispSaidas)}</div><div class="small muted">orçado − realizado − previsto</div></div>
     </div>
     <p class="small muted">Compras no cartão contam no mês da fatura. A sobra do orçado não passa para o mês seguinte. Toque numa categoria para mudar o orçado.</p>
