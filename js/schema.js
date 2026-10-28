@@ -39,7 +39,10 @@ export function rowToObj(sheet, values) {
   cols.forEach((c, i) => {
     let v = values[i];
     if (v === undefined || v === null) v = '';
-    if (NUMBERS.has(c)) {
+    if (sheet === 'Config') {
+      // Config guarda valores de tipos variados (número, data, texto): mantém como veio.
+      o[c] = typeof v === 'string' ? v.trim() : v;
+    } else if (NUMBERS.has(c)) {
       if (v === '') o[c] = null;
       else {
         const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
@@ -58,6 +61,7 @@ export function rowToObj(sheet, values) {
 export function objToRow(sheet, o) {
   return SHEETS[sheet].map(c => {
     const v = o[c];
+    if (sheet === 'Config') return v === null || v === undefined ? '' : (typeof v === 'number' ? v : String(v));
     if (BOOLS.has(c)) return v ? 'SIM' : 'NÃO';
     if (v === null || v === undefined) return '';
     if (NUMBERS.has(c)) return Number(v);
