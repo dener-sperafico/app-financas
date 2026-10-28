@@ -78,10 +78,17 @@ export class Store {
     }
     this._put(sheet, o);
     this.s.queue.push({ op: 'put', sheet, key, obj: o, base: prev ? prev.alterado_em || '' : null });
-    this.save();
-    this.emit();
-    this.flushSoon();
+    if (!this._batching) { this.save(); this.emit(); this.flushSoon(); }
     return o;
+  }
+
+  // Muitas gravações de uma vez (importação): salva e avisa a tela só no final.
+  batch(fn) {
+    this._batching = true;
+    try { fn(); } finally {
+      this._batching = false;
+      this.save(); this.emit(); this.flushSoon();
+    }
   }
 
   remove(sheet, key) {
