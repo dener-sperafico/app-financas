@@ -416,3 +416,7 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .passos.simples li { display: list-item; margin-left: var(--esp-5); list-style: disc; }
 .passos svg.ic.mini { color: var(--cor-violeta); margin-right: 2px; }
 .modal .mh .steps { margin: 0; }
+.tutorial .grupo { font-size: var(--txt-legenda); font-weight: 700; color: var(--cor-violeta); }
+.tutorial .exemplo.calc { gap: 0; }
+.tutorial .exemplo.calc .kv { font-size: var(--txt-apoio); padding: 5px 0; }
+.tutorial .exemplo .orc-linha .t, .tutorial .exemplo .orc-linha .num { font-size: var(--txt-apoio); }

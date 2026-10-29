@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=15';
-import { MockBackend } from './mock.js?v=15';
-import { Store } from './store.js?v=15';
-import { objToRow } from './schema.js?v=15';
-import * as M from './model.js?v=15';
-import { interpretar, previstoParecido } from './parser.js?v=15';
-import { ic, icCategoria } from './icones.js?v=15';
+import { GoogleBackend, AuthError } from './google.js?v=17';
+import { MockBackend } from './mock.js?v=17';
+import { Store } from './store.js?v=17';
+import { objToRow } from './schema.js?v=17';
+import * as M from './model.js?v=17';
+import { interpretar, previstoParecido } from './parser.js?v=17';
+import { ic, icCategoria } from './icones.js?v=17';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=15';
+} from './util.js?v=17';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -611,7 +611,8 @@ function scrMais() {
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/setup/orcamento', 'calendar-range', 'Orçar o mês atual')}
         ${ir('#/setup/compartilhar', 'user-round', 'Usar junto com o cônjuge')}
-        <button class="item" data-act="tutorial">${ic('circle-help')}<span class="meio"><span class="t">Como usar o Oikon</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
+        <button class="item" data-act="tutorial" data-passo="0">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
+        <button class="item" data-act="tutorial" data-passo="5">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
         <button class="btn danger" data-act="logout">${ic('log-out')}Sair e limpar os dados deste aparelho</button>
@@ -761,7 +762,8 @@ function renderModal() {
   // Foco só ao abrir o painel ou um campo, nunca a cada redesenho (não rouba o clique da pessoa).
   if (novo || m._focar) {
     const f = el.querySelector('[data-foco], [autofocus]') || el.querySelector('.x');
-    if (f) f.focus();
+    if (f) f.focus({ preventScroll: true });
+    const caixa = el.querySelector('.modal'); if (caixa) caixa.scrollTop = 0;
     m._focar = false;
   }
 }
@@ -1160,7 +1162,7 @@ function categoriaPanel(m) {
 
 // ---------- Tutorial do primeiro acesso ----------
 // Aparece uma vez por aparelho, depois de entrar e conectar a planilha. Pode ser revisto em Mais › Como usar o Oikon.
-const TUTORIAL_KEY = 'af_tutorial';
+const TUTORIAL_KEY = 'af_tutorial_v2'; // v2: ganhou a parte "Como o Oikon pensa"; quem viu a v1 vê de novo uma vez
 const tutorialVisto = () => { try { return localStorage.getItem(TUTORIAL_KEY) === '1'; } catch { return true; } };
 const marcarTutorial = () => { try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignora */ } };
 const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -1214,29 +1216,66 @@ function passoInstalar() {
 }
 
 function passosTutorial() {
+  const kv = (rot, v, cls = '') => `<div class="kv ${cls}"><span>${rot}</span><span class="num">${v}</span></div>`;
+  const METODO = 'Como o Oikon pensa', USO = 'No dia a dia';
   return [
     {
-      icone: 'arrow-right', titulo: 'Lance em uma frase',
+      grupo: METODO, icone: 'calendar-range', titulo: 'Primeiro o plano, depois o dia a dia',
+      texto: `<p>O Oikon funciona como envelopes. No começo do mês, você divide o que vai entrar entre as categorias da casa. O valor de cada categoria é o <b>orçado</b>.</p>
+        <div class="exemplo calc"><span class="small muted">Exemplo</span>
+          ${kv('Entradas do mês', 'R$ 10.000,00')}
+          ${kv('− Moradia', 'R$ 2.500,00')}${kv('− Contas fixas', 'R$ 3.000,00')}${kv('− Mercado', 'R$ 1.200,00')}
+          ${kv('− Transporte e lazer', 'R$ 1.400,00')}${kv('− Guardar', 'R$ 1.500,00')}
+          ${kv('= Sobra planejada', 'R$ 400,00', 'total')}</div>
+        <p>O orçado é um plano: ele não tira dinheiro da conta. O dinheiro só sai quando o gasto acontece.</p>`,
+    },
+    {
+      grupo: METODO, icone: 'list', titulo: 'Orçado, previsto e realizado',
+      texto: `<p>Cada categoria acompanha três números:</p>
+        <ul class="passos simples">
+          <li><b>Orçado:</b> quanto você decidiu que ela pode usar no mês.</li>
+          <li><b>Previsto:</b> o que já se sabe que vai sair, com data. Conta de luz, parcela, assinatura.</li>
+          <li><b>Realizado:</b> o que já aconteceu.</li>
+        </ul>
+        <div class="exemplo"><span class="small muted">Exemplo</span>
+          <span class="orc-linha"><span class="t">Mercado</span><span class="num">R$ 800,00 de R$ 1.200,00</span></span>
+          ${barra(700, 100, 1200)}
+          <span class="small muted">R$ 700,00 realizados · R$ 100,00 previstos · <b>disponível: R$ 400,00</b></span></div>
+        <p>Disponível é o orçado menos o realizado e o previsto. É quanto ainda cabe naquela categoria.</p>`,
+    },
+    {
+      grupo: METODO, icone: 'arrow-down-to-line', titulo: 'Quanto deve sobrar no fim do mês',
+      texto: `<p>É o número grande da tela inicial. A conta é esta:</p>
+        <div class="exemplo calc">
+          ${kv('Saldo na conta hoje', '')}${kv('+ O que ainda vai entrar', '')}${kv('− Contas previstas e faturas', '')}${kv('− Orçado que ainda pode ser gasto', '')}
+          ${kv('= No fim do mês, deve sobrar', '', 'total')}</div>
+        <p>O Oikon conta que você vai gastar todo o orçado. Se gastar menos, sobra mais. Assim a previsão não promete dinheiro que pode não existir.</p>
+        <p>O <b>Saldo na conta</b>, logo abaixo, mostra só o que já aconteceu.</p>`,
+    },
+    {
+      grupo: METODO, icone: 'piggy-bank', titulo: 'Guarde primeiro, e cada mês recomeça',
+      texto: `<p>Reserva e investimentos também são categorias orçadas. Com o guardar dentro do plano, ele não depende do que sobrar no fim do mês.</p>
+        <p>O que uma categoria não gastar não passa para o mês seguinte: fica como sobra na conta. Cada mês começa com um plano novo.</p>
+        <p>Se uma categoria passar do orçado, o Oikon mostra quanto passou. Dá para aumentar o orçado dela ou tirar de outra.</p>`,
+    },
+    {
+      grupo: METODO, icone: 'credit-card', titulo: 'O cartão conta no mês da fatura',
+      texto: `<p>A compra no cartão entra no orçado do mês em que a fatura vence, que é quando o dinheiro sai da conta.</p>
+        <div class="exemplo"><span class="small muted">Exemplo</span><span>Compra de 28/10 num cartão que fecha dia 13 e vence dia 23: entra na fatura de 23/11 e no orçado de <b>novembro</b>.</span></div>
+        <p>Cada categoria pode ter um cartão previsto, como Mercado no cartão do dia a dia. A fatura futura mostra o que já foi lançado mais uma estimativa pelo orçado que ainda não foi gasto.</p>`,
+    },
+    {
+      grupo: USO, icone: 'arrow-right', titulo: 'Lance em uma frase',
       texto: `<p>Escreva no campo de baixo do jeito que falaria:</p>
         <div class="exemplo"><span class="frase-ex">mercado 150 pix</span><span class="chips"><span class="chip ed">R$ 150,00</span><span class="chip ed">Mercado</span><span class="chip ed">Pix</span><span class="chip ed">Hoje</span></span></div>
         <p>O Oikon entende valor, categoria, pagamento e data. Você confere antes de salvar e ele aprende com cada correção. Outros exemplos: <b>gasolina 200 nubank</b>, <b>salário 5000</b>, <b>tênis 600 nubank 3x</b>.</p>`,
     },
     {
-      icone: 'calendar-range', titulo: 'Quanto deve sobrar',
-      texto: `<p>O número grande da tela inicial é <b>quanto deve sobrar na conta no fim do mês</b>. Ele já conta o que está previsto, as faturas e o que ainda pode ser gasto do orçado.</p>
-        <p>Toque nele para ver a conta inteira. O <b>Saldo na conta</b>, logo abaixo, mostra só o que já aconteceu.</p>`,
-    },
-    {
-      icone: 'check', titulo: 'Confirme o que já aconteceu',
+      grupo: USO, icone: 'check', titulo: 'Confirme o que já aconteceu',
       texto: `<p>Contas previstas, como luz ou aluguel, aparecem em <b>Para confirmar</b> quando a data chega. Toque em <b>Confirmar</b> se foi como esperado, ou abra para mudar valor e data.</p>
         <p>Assinaturas e parcelas no cartão se confirmam sozinhas quando a fatura fecha.</p>`,
     },
-    {
-      icone: 'credit-card', titulo: 'Orçado e cartão',
-      texto: `<p>Em <b>Mês</b>, cada categoria mostra o orçado, o que já foi gasto e o que ainda está previsto.</p>
-        <p>Compra no cartão conta no mês da fatura. A fatura mostra o que já foi lançado e uma estimativa pelo orçado que ainda não foi gasto.</p>`,
-    },
-    passoInstalar(),
+    { grupo: USO, ...passoInstalar() },
   ];
 }
 
@@ -1245,10 +1284,13 @@ function tutorialPanel(m) {
   const i = Math.min(m.passo || 0, passos.length - 1);
   const p = passos[i];
   const ultimo = i === passos.length - 1;
+  const doGrupo = passos.filter(x => x.grupo === p.grupo);
+  const posGrupo = doGrupo.indexOf(p) + 1;
   return `<div class="mh"><div class="steps" role="img" aria-label="Passo ${i + 1} de ${passos.length}">${passos.map((_, k) => `<i class="${k < i ? 'feito' : k === i ? 'atual' : ''}"></i>`).join('')}</div>
       ${ultimo ? `<button class="x" data-act="tutorial-fim" aria-label="Fechar">${ic('x')}</button>` : '<button class="btn link" data-act="tutorial-fim">Pular</button>'}</div>
     <div class="tutorial">
       <span class="tut-ic">${ic(p.icone)}</span>
+      <span class="grupo">${p.grupo} · ${posGrupo} de ${doGrupo.length}</span>
       <h2 id="mh-t">${p.titulo}</h2>
       <div class="stack">${p.texto}</div>
     </div>
@@ -1257,6 +1299,7 @@ function tutorialPanel(m) {
       ${ultimo ? `<button class="btn primary" data-act="tutorial-fim" data-foco>Começar a usar</button>` : `<button class="btn primary" data-act="tutorial-passo" data-passo="${i + 1}" data-foco>Próximo${ic('arrow-right')}</button>`}
     </div>`;
 }
+
 
 // ---------- Ações ----------
 function novoDraft(texto) {
@@ -1371,7 +1414,7 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
-  tutorial() { openModal({ type: 'tutorial', passo: 0 }); },
+  tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
   'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
   'tutorial-fim'() { marcarTutorial(); closeModal(); },
   async instalar() { const ev = ui.instalar; if (!ev) return; ev.prompt(); try { await ev.userChoice; } catch { /* ignora */ } ui.instalar = null; renderModal(); },
@@ -1610,7 +1653,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=15', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=17', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
