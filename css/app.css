@@ -420,3 +420,4 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .tutorial .exemplo.calc { gap: 0; }
 .tutorial .exemplo.calc .kv { font-size: var(--txt-apoio); padding: 5px 0; }
 .tutorial .exemplo .orc-linha .t, .tutorial .exemplo .orc-linha .num { font-size: var(--txt-apoio); }
+.passos .n svg.ic { width: 16px; height: 16px; }

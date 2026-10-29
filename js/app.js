@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=17';
-import { MockBackend } from './mock.js?v=17';
-import { Store } from './store.js?v=17';
-import { objToRow } from './schema.js?v=17';
-import * as M from './model.js?v=17';
-import { interpretar, previstoParecido } from './parser.js?v=17';
-import { ic, icCategoria } from './icones.js?v=17';
+import { GoogleBackend, AuthError } from './google.js?v=19';
+import { MockBackend } from './mock.js?v=19';
+import { Store } from './store.js?v=19';
+import { objToRow } from './schema.js?v=19';
+import * as M from './model.js?v=19';
+import { interpretar, previstoParecido } from './parser.js?v=19';
+import { ic, icCategoria } from './icones.js?v=19';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=17';
+} from './util.js?v=19';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -611,8 +611,8 @@ function scrMais() {
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/setup/orcamento', 'calendar-range', 'Orçar o mês atual')}
         ${ir('#/setup/compartilhar', 'user-round', 'Usar junto com o cônjuge')}
-        <button class="item" data-act="tutorial" data-passo="0">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
-        <button class="item" data-act="tutorial" data-passo="5">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
+        <button class="item" data-act="tutorial" data-passo="1">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
+        <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
         <button class="btn danger" data-act="logout">${ic('log-out')}Sair e limpar os dados deste aparelho</button>
@@ -1218,7 +1218,19 @@ function passoInstalar() {
 function passosTutorial() {
   const kv = (rot, v, cls = '') => `<div class="kv ${cls}"><span>${rot}</span><span class="num">${v}</span></div>`;
   const METODO = 'Como o Oikon pensa', USO = 'No dia a dia';
+  const conta = S.user?.email ? `<b>${esc(S.user.email)}</b>` : 'conectada';
+  const planilha = S.spreadsheet?.name ? ` A planilha se chama <b>${esc(S.spreadsheet.name)}</b>.` : '';
   return [
+    {
+      grupo: 'Boas-vindas', icone: 'house', titulo: 'O dinheiro da casa, num lugar só',
+      texto: `<ul class="passos">
+          <li><span class="n">${ic('smartphone')}</span><span><b>No celular</b>, para lançar na hora em que o gasto acontece.</span></li>
+          <li><span class="n">${ic('monitor')}</span><span><b>No computador</b>, para planejar o mês com mais espaço. É o mesmo endereço e os mesmos dados.</span></li>
+        </ul>
+        <div class="exemplo"><span class="row" style="justify-content:flex-start;gap:var(--esp-2)">${ic('sheet', 'mini')}<b>Onde ficam os seus dados</b></span>
+          <span>Numa planilha no Google Drive, que você acessa com a conta ${conta}.${planilha} Fora uma cópia neste aparelho, para funcionar sem internet, o Oikon não guarda seus dados em nenhum outro lugar.</span>
+          <span class="small muted">Quem pode ver é decidido no compartilhamento do Drive. Você abre a planilha quando quiser, em Mais.</span></div>`,
+    },
     {
       grupo: METODO, icone: 'calendar-range', titulo: 'Primeiro o plano, depois o dia a dia',
       texto: `<p>O Oikon funciona como envelopes. No começo do mês, você divide o que vai entrar entre as categorias da casa. O valor de cada categoria é o <b>orçado</b>.</p>
@@ -1290,7 +1302,7 @@ function tutorialPanel(m) {
       ${ultimo ? `<button class="x" data-act="tutorial-fim" aria-label="Fechar">${ic('x')}</button>` : '<button class="btn link" data-act="tutorial-fim">Pular</button>'}</div>
     <div class="tutorial">
       <span class="tut-ic">${ic(p.icone)}</span>
-      <span class="grupo">${p.grupo} · ${posGrupo} de ${doGrupo.length}</span>
+      <span class="grupo">${p.grupo}${doGrupo.length > 1 ? ` · ${posGrupo} de ${doGrupo.length}` : ''}</span>
       <h2 id="mh-t">${p.titulo}</h2>
       <div class="stack">${p.texto}</div>
     </div>
@@ -1653,7 +1665,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=17', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=19', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
