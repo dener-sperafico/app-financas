@@ -422,23 +422,38 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .tutorial .exemplo .orc-linha .t, .tutorial .exemplo .orc-linha .num { font-size: var(--txt-apoio); }
 .passos .n svg.ic { width: 16px; height: 16px; }
 
-/* ---------- Futuro (8.16) ---------- */
+/* ---------- Futuro (8.16, revisto) ---------- */
 .cabecalho .chip svg.ic { width: 20px; height: 20px; }
-.grafico { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 180px; padding-top: var(--esp-2); }
-.grafico .col { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--raio-p); }
+/* Celular: barras horizontais com o valor de cada mês */
+.grafico-h { display: flex; flex-direction: column; gap: 2px; }
+.grafico-h .lin { display: grid; grid-template-columns: 44px 1fr 92px; align-items: center; gap: var(--esp-2); min-height: 30px; padding: 0 var(--esp-1); border: 0; background: none; border-radius: var(--raio-p); cursor: pointer; text-align: left; color: inherit; }
+.grafico-h .lin:hover, .grafico-h .lin:focus-visible { background: var(--cor-lavanda-leve); }
+.grafico-h .mes { font-size: var(--txt-legenda); color: var(--cor-texto-3); display: flex; align-items: baseline; gap: 2px; }
+.grafico-h .mes small { font-size: var(--txt-legenda); color: var(--cor-texto-3); }
+.grafico-h .lin.atual .mes { color: var(--cor-noite); font-weight: 800; }
+.grafico-h .lin.atual { box-shadow: inset 3px 0 0 var(--cor-ambar); }
+.grafico-h .trilho { position: relative; height: 14px; }
+.grafico-h .zero { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--cor-borda-forte); }
+.grafico-h .trilho i { position: absolute; top: 0; bottom: 0; min-width: 2px; background: var(--cor-violeta); border-radius: 0 6px 6px 0; }
+.grafico-h .trilho i.neg { background: var(--cor-negativo); border-radius: 6px 0 0 6px; }
+.grafico-h .num { text-align: right; font-size: var(--txt-legenda); }
+/* Computador: barras verticais com o valor em cima */
+.grafico { display: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--esp-1); height: 260px; padding-top: var(--esp-8); }
+.grafico .col { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--raio-p); color: inherit; }
 .grafico .col:hover, .grafico .col:focus-visible { background: var(--cor-lavanda-leve); }
-.grafico .area { display: flex; justify-content: center; }
-.grafico .area.pos { align-items: flex-end; border-bottom: 1px solid var(--cor-borda-forte); }
-.grafico .area.negs { align-items: flex-start; }
+.grafico .area { display: flex; flex-direction: column; align-items: center; }
+.grafico .area.cima { justify-content: flex-end; border-bottom: 1px solid var(--cor-borda-forte); }
+.grafico .area.baixo { justify-content: flex-start; }
 .grafico .area i { display: block; width: 60%; min-height: 2px; background: var(--cor-violeta); }
-.grafico .area.pos i { border-radius: 6px 6px 0 0; }
-.grafico .area.negs i { background: var(--cor-negativo); border-radius: 0 0 6px 6px; }
+.grafico .area.cima i { border-radius: 6px 6px 0 0; }
+.grafico .area.baixo i { background: var(--cor-negativo); border-radius: 0 0 6px 6px; }
+.grafico .area i { position: relative; }
+.grafico .val { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); font-size: var(--txt-legenda); white-space: nowrap; padding-bottom: 3px; }
+.grafico .area.baixo .val { bottom: auto; top: 100%; padding: 3px 0 0; }
 .grafico .mes { font-size: var(--txt-legenda); color: var(--cor-texto-3); text-align: center; padding-top: 4px; }
 .grafico .col.atual .mes { color: var(--cor-noite); font-weight: 800; }
 .grafico .col.atual .mes::before { content: ""; display: block; width: 16px; height: 3px; margin: 0 auto 3px; border-radius: 2px; background: var(--cor-ambar); }
-.grafico .val { position: absolute; top: -6px; left: 50%; transform: translate(-50%, -100%); z-index: 2; display: none; padding: 4px 8px; border-radius: var(--raio-p); background: var(--cor-noite); color: #fff; font-size: var(--txt-legenda); }
-.grafico .val.neg { color: #fff; }
-.grafico .col:hover .val, .grafico .col:focus-visible .val { display: block; }
+@media (min-width: 960px) { .grafico { display: grid; } .grafico-h { display: none; } }
 .dia-fut { align-items: flex-start; }
 .dia-fut .mvs { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .dia-fut .mv { display: flex; justify-content: space-between; gap: var(--esp-3); font-size: var(--txt-legenda); color: var(--cor-texto-2); }
@@ -446,8 +461,6 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .dia-fut .mv .s { color: var(--cor-texto-3); }
 .dia-fut.negativo { background: var(--cor-negativo-fundo); border-color: transparent; }
 .dia-fut .r .num { font-size: var(--txt-numero-p); }
-@media (min-width: 960px) { .grafico { height: 220px; } }
-@media (max-width: 520px) { .grafico .col.impar:not(.atual) .mes { visibility: hidden; } }
 .meses-fut { display: flex; flex-direction: column; gap: 10px; }
 .mes-fut { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-m); }
 .mes-fut > summary { list-style: none; display: flex; align-items: center; gap: var(--esp-3); min-height: 64px; padding: var(--esp-3) 14px; cursor: pointer; border-radius: var(--raio-m); }
@@ -469,3 +482,30 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .marca-casa img { width: 40px; height: 40px; }
 .marca-casa span { font-family: var(--fonte-numero); font-weight: 600; font-size: 24px; letter-spacing: -0.01em; color: var(--cor-noite); }
 @media (min-width: 960px) { .cabecalho .marca-casa { display: none; } .cabecalho { justify-content: flex-end; } }
+
+/* ---------- Atenção no mês: alerta compacto (8.10b) ---------- */
+.alertas { display: flex; flex-direction: column; background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-m); overflow: hidden; }
+.alerta { display: flex; align-items: center; gap: var(--esp-2); min-height: var(--toque-min); padding: var(--esp-2) var(--esp-3); color: var(--cor-texto); text-decoration: none; font-size: var(--txt-apoio); border-top: 1px solid var(--cor-borda); }
+.alerta:first-child { border-top: 0; }
+.alerta:hover { background: var(--cor-lavanda-leve); }
+.alerta > svg.ic { width: 20px; height: 20px; }
+.alerta .txt { flex: 1; min-width: 0; }
+.alerta .num { font-size: var(--txt-apoio); }
+.alerta .seta { width: 16px; height: 16px; color: var(--cor-texto-3); }
+.alerta.est > svg.ic:first-child, .alerta.est .num { color: var(--cor-negativo); }
+.alerta.perto > svg.ic:first-child, .alerta.perto .num { color: var(--cor-atencao); }
+.alerta.fora > svg.ic:first-child { color: var(--cor-texto-3); }
+/* Título de seção que é link (Para confirmar) */
+.titulo-link { display: inline-flex; align-items: center; gap: var(--esp-2); color: inherit; text-decoration: none; min-height: var(--toque-min); }
+.titulo-link svg.ic { width: 20px; height: 20px; color: var(--cor-texto-3); }
+.titulo-link:hover svg.ic { color: var(--cor-violeta); }
+/* ---------- Atalhos em cards, em carrossel ---------- */
+.atalhos { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--esp-5); margin: 0 calc(-1 * var(--esp-5)); padding: 2px var(--esp-5) var(--esp-2); scrollbar-width: none; }
+.atalhos::-webkit-scrollbar { display: none; }
+.atalho { flex: none; scroll-snap-align: start; width: 128px; min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; gap: var(--esp-3); padding: 14px; background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-g); color: var(--cor-noite); text-decoration: none; font-weight: 700; font-size: var(--txt-apoio); line-height: 1.3; }
+.atalho svg.ic { color: var(--cor-violeta); }
+.atalho:hover { border-color: var(--cor-borda-forte); background: var(--cor-lavanda-leve); }
+@media (min-width: 960px) { .atalhos { margin: 0; padding: 2px 0; overflow: visible; flex-wrap: wrap; } .atalho { width: 160px; } }
+.grafico .val { color: var(--cor-texto); }
+.grafico .val.neg { color: var(--cor-negativo); }
+.grafico .val, .grafico-h .num { font-style: normal; }

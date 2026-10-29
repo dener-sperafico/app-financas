@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=26';
-import { MockBackend } from './mock.js?v=26';
-import { Store } from './store.js?v=26';
-import { objToRow } from './schema.js?v=26';
-import * as M from './model.js?v=26';
-import { interpretar, previstoParecido } from './parser.js?v=26';
-import { ic, icCategoria } from './icones.js?v=26';
+import { GoogleBackend, AuthError } from './google.js?v=31';
+import { MockBackend } from './mock.js?v=31';
+import { Store } from './store.js?v=31';
+import { objToRow } from './schema.js?v=31';
+import * as M from './model.js?v=31';
+import { interpretar, previstoParecido } from './parser.js?v=31';
+import { ic, icCategoria } from './icones.js?v=31';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=26';
+} from './util.js?v=31';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -316,13 +316,14 @@ function scrInicio() {
         <a class="card metrica" href="#/cartoes"><span class="label">Fatura do cartão</span><span class="big num">${money(fat.total)}</span><span class="apoio">${fat.n === 1 ? `Vence ${fmtDate(fat.venc)}` : fat.n ? `${fat.n} cartões` : 'Nenhuma aberta'}</span></a>
       </div>
       <section class="col6">
-        <h2 class="section-title">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}${pend.length > 3 ? '<a class="btn link r" href="#/pendentes">Ver todos</a>' : ''}</h2>
-        ${pend.length ? `<div class="list">${pend.slice(0, 3).map(pendItem).join('')}</div>`
+        <h2 class="section-title"><a class="titulo-link" href="#/pendentes">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}${ic('chevron-right')}</a></h2>
+        ${pend.length ? `<div class="list">${pend.slice(0, 3).map(pendItem).join('')}</div>${pend.length > 3 ? `<a class="btn link" href="#/pendentes">Ver os ${pend.length}</a>` : ''}`
           : '<p class="apoio">Nada para confirmar. Pode ir fazer outra coisa da vida.</p>'}
-        ${totalFora ? `<div style="margin-top:var(--esp-4)">${aviso('', '', `${money(totalFora)} em gastos fora do orçamento este mês. <a href="#/mes/${mes}/${M.FORA}">Ver</a>`)}</div>` : ''}
-        ${atencao.length ? `<div class="stack" style="margin-top:var(--esp-4)">${atencao.slice(0, 3).map(x => x.disponivel < 0
-          ? aviso('err', '', `${esc(x.categoria.nome)} passou ${money(-x.disponivel)} do orçado este mês.`)
-          : aviso('warn', '', `${esc(x.categoria.nome)} está perto do limite: sobram ${money(x.disponivel)} até o fim do mês.`)).join('')}</div>` : ''}
+        ${atencao.length || totalFora ? `<h2 class="section-title">Atenção no mês</h2>
+          <div class="alertas">
+            ${atencao.slice(0, 4).map(x => alertaCompacto(x.disponivel < 0 ? 'est' : 'perto', x.categoria, x.disponivel < 0 ? 'passou do orçado' : 'perto do limite', x.disponivel < 0 ? `${money(-x.disponivel)} acima` : `restam ${money(x.disponivel)}`, `#/mes/${mes}/${esc(x.categoria.id)}`)).join('')}
+            ${totalFora ? alertaCompacto('fora', { nome: 'Fora do orçamento' }, 'gastos sem categoria', money(totalFora), `#/mes/${mes}/${M.FORA}`) : ''}
+          </div>` : ''}
       </section>
       <section class="col6 so-desk-b">
         <h2 class="section-title">Mês por categoria <a class="btn link r" href="#/mes">Ver o mês</a></h2>
@@ -330,17 +331,24 @@ function scrInicio() {
       </section>
       <section class="col12">
         <h2 class="section-title">Atalhos</h2>
-        <div class="chips">
-          <a class="chip" href="#/cartoes">${ic('credit-card')}Faturas dos cartões</a>
-          <a class="chip" href="#/mes">${ic('calendar-range')}Orçamento do mês</a>
-          <a class="chip" href="#/pendentes">${ic('check')}Para confirmar</a>
-          <a class="chip" href="#/saldo">${ic('sliders-horizontal')}Ajustar saldo</a>
+        <div class="atalhos" role="list">
+          <a class="atalho" role="listitem" href="#/cartoes">${ic('credit-card')}<span>Faturas dos cartões</span></a>
+          <a class="atalho" role="listitem" href="#/mes">${ic('calendar-range')}<span>Orçamento do mês</span></a>
+          <a class="atalho" role="listitem" href="#/futuro">${ic('chart-no-axes-column')}<span>Saldo no futuro</span></a>
+          <a class="atalho" role="listitem" href="#/saldo">${ic('sliders-horizontal')}<span>Ajustar saldo</span></a>
+          <a class="atalho" role="listitem" href="#/categorias">${ic('tag')}<span>Categorias</span></a>
         </div>
         <h2 class="section-title">Últimos lançamentos</h2>
         ${ultimos.length ? `<div class="list">${ultimos.map(l => lancItem(l, { data: true })).join('')}</div>`
           : '<div class="vazio">' + ic('list') + '<p>Nada lançado ainda. Escreva no campo abaixo, por exemplo: <b>mercado 150 pix</b>.</p></div>'}
       </section>
     </div>`;
+}
+
+// Alerta compacto (8.10b): uma linha por categoria. Nome, situação e valor; toque abre a categoria.
+function alertaCompacto(tipo, cat, situacao, valor, href) {
+  const icone = tipo === 'est' ? 'circle-alert' : tipo === 'perto' ? 'clock' : 'circle-dot';
+  return `<a class="alerta ${tipo}" href="${href}">${ic(icone)}<span class="txt"><b>${esc(cat.nome)}</b>: ${situacao}</span><span class="num">${valor}</span>${ic('chevron-right', 'seta')}</a>`;
 }
 
 // Bloco de destaque (8.4): quanto deve sobrar no fim do mês. Agrupa também o orçamento das saídas (decisão de 28/10).
@@ -628,28 +636,44 @@ function scrFuturo() {
     <div class="card stack">
       <h2>Fim de cada mês</h2>
       ${graficoFechamento(fechamento)}
-      <p class="small muted">${frase} Toque num mês para ver os dias.</p>
+      <p class="small muted">${frase} Valores do saldo no último dia de cada mês. Toque num mês para ver os dias.</p>
     </div>
     <div class="meses-fut secao">${meses.map(mes => blocoMesFuturo(p, mes)).join('')}</div>
     <p class="small muted secao">Gasto com data sai no dia dele. O que ainda sobra do orçado sem data é espalhado por igual pelos dias do mês; nas categorias pagas no cartão, entra na fatura. Meses sem orçado mostram só o que já está previsto.</p>`;
 }
 
-// Gráfico de barras do fechamento (8.16): violeta com sobra, vermelho abaixo de zero, marcador âmbar no mês atual.
+// Gráfico do fim de cada mês (8.16, revisto em 29/10): sempre com o valor de cada mês à vista.
+// Celular: barras horizontais, um mês por linha. Computador: barras verticais com o valor em cima.
 function graficoFechamento(fs) {
   const maxPos = Math.max(0, ...fs.map(f => f.saldo));
   const maxNeg = Math.max(0, ...fs.map(f => -f.saldo));
   const total = maxPos + maxNeg || 1;
-  const altPos = (maxPos / total) * 100, altNeg = (maxNeg / total) * 100;
+  const zero = (maxNeg / total) * 100; // posição do zero, da esquerda (horizontal) ou de baixo (vertical)
   const atual = monthOf(hoje());
-  return `<div class="grafico" role="list" aria-label="Saldo no fim de cada mês">${fs.map((f, i) => {
+  const curto = v => {
+    const a = Math.abs(v), sinal = v < 0 ? '−' : '';
+    return a >= 1000 ? `${sinal}${(a / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil` : `${sinal}${Math.round(a)}`;
+  };
+  const rotulo = f => `${cap(monthName(f.mes))}: ${f.saldo < 0 ? 'deve faltar' : 'deve sobrar'} ${money(Math.abs(f.saldo))}`;
+  const mesCurto = f => monthShort(f.mes).split('/')[0];
+  const horizontal = `<div class="grafico-h" role="list" aria-label="Saldo no fim de cada mês">${fs.map(f => {
+    const w = (Math.abs(f.saldo) / total) * 100;
+    const neg = f.saldo < 0;
+    return `<button class="lin ${f.mes === atual ? 'atual' : ''}" role="listitem" data-act="ir-mes" data-mes="${f.mes}" aria-label="${rotulo(f)}">
+      <span class="mes">${mesCurto(f)}${f.mes.slice(5) === '01' || f.mes === atual ? `<small>${f.mes.slice(2, 4)}</small>` : ''}</span>
+      <span class="trilho"><span class="zero" style="left:${zero}%"></span><i class="${neg ? 'neg' : ''}" style="${neg ? `right:${100 - zero}%` : `left:${zero}%`};width:${w}%"></i></span>
+      <span class="num ${neg ? 'neg' : ''}">${formatarReais(f.saldo, { inteiro: true })}</span></button>`;
+  }).join('')}</div>`;
+  const altPos = (maxPos / total) * 100, altNeg = zero;
+  const vertical = `<div class="grafico" role="list" aria-label="Saldo no fim de cada mês">${fs.map(f => {
     const h = (Math.abs(f.saldo) / total) * 100;
     const neg = f.saldo < 0;
-    return `<button class="col ${f.mes === atual ? 'atual' : ''} ${i % 2 ? 'impar' : ''}" role="listitem" data-act="ir-mes" data-mes="${f.mes}" aria-label="${cap(monthName(f.mes))}: ${neg ? 'deve faltar' : 'deve sobrar'} ${money(Math.abs(f.saldo))}">
-      <span class="val num ${neg ? 'neg' : ''}">${formatarReais(f.saldo, { inteiro: true })}</span>
-      <span class="area pos" style="height:${altPos}%">${neg ? '' : `<i style="height:${(h / (altPos || 1)) * 100}%"></i>`}</span>
-      <span class="area negs" style="height:${altNeg}%">${neg ? `<i style="height:${(h / (altNeg || 1)) * 100}%"></i>` : ''}</span>
-      <span class="mes">${monthShort(f.mes).split('/')[0]}</span></button>`;
+    return `<button class="col ${f.mes === atual ? 'atual' : ''}" role="listitem" data-act="ir-mes" data-mes="${f.mes}" aria-label="${rotulo(f)}">
+      <span class="area cima" style="height:${altPos}%">${neg ? '' : `<i style="height:${(h / (altPos || 1)) * 100}%"><span class="val num">${curto(f.saldo)}</span></i>`}</span>
+      <span class="area baixo" style="height:${altNeg}%">${neg ? `<i style="height:${(h / (altNeg || 1)) * 100}%"><span class="val num neg">${curto(f.saldo)}</span></i>` : ''}</span>
+      <span class="mes">${mesCurto(f)}</span></button>`;
   }).join('')}</div>`;
+  return horizontal + vertical;
 }
 
 function blocoMesFuturo(p, mes) {
@@ -708,8 +732,7 @@ function scrMais() {
         <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
-        <button class="btn danger" data-act="logout">${ic('log-out')}Sair e limpar os dados deste aparelho</button>
-        <div class="small muted">A planilha no Drive não muda.</div></div>
+        <button class="btn danger" data-act="logout">${ic('log-out')}Sair</button></div>
     </div>`;
 }
 
@@ -1556,7 +1579,7 @@ const actions = {
   logout() {
     const q = S.queue.length;
     openModal({
-      type: 'confirmar', title: 'Sair deste aparelho?', yes: 'Sair e limpar', danger: true,
+      type: 'confirmar', title: 'Sair do Oikon?', yes: 'Sair', danger: true,
       text: `Os dados guardados neste aparelho serão apagados. A planilha no Drive não muda.${q ? ` <b>Atenção: ${q} alteração(ões) ainda não foram enviadas e serão perdidas.</b>` : ''}`,
       onYes: () => { B.signOut(); S.reset(); ui.found = null; closeModal(); go('#/login'); },
     });
@@ -1780,7 +1803,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=26', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=31', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

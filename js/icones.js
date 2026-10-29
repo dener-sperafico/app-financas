@@ -1,6 +1,7 @@
 // Ícones de linha do Lucide (lucide.dev, licença ISC; ver icons/LICENSE-Lucide.txt), copiados inline.
 // Estilo do Oikon: traço 1.8, pontas arredondadas, cor herdada do texto.
 const P = {
+  'circle-alert': '<circle cx="12" cy="12" r="10" /> <line x1="12" x2="12" y1="8" y2="12" /> <line x1="12" x2="12.01" y1="16" y2="16" />',
   'chevron-down': '<path d="m6 9 6 6 6-6" />',
   'sheet': '<rect width="18" height="18" x="3" y="3" rx="2" ry="2" /> <line x1="3" x2="21" y1="9" y2="9" /> <line x1="3" x2="21" y1="15" y2="15" /> <line x1="9" x2="9" y1="9" y2="21" /> <line x1="15" x2="15" y1="9" y2="21" />',
   'circle-help': '<circle cx="12" cy="12" r="10" /> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /> <path d="M12 17h.01" />',
