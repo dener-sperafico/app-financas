@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=20';
-import { SEED_CATEGORIES } from './schema.js?v=20';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=22';
+import { SEED_CATEGORIES } from './schema.js?v=22';
 
 export const AJUSTES = 'cat_ajustes';
 export const FORMAS = [
@@ -239,6 +239,67 @@ export function fechamentoDetalhe(S, hoje = todayISO()) {
   });
   receber = round2(receber); pagar = round2(pagar); faturas = round2(faturas); reservado = round2(reservado);
   return { mes, fim, saldo, receber, pagar, faturas, reservado, total: round2(saldo + receber - pagar - faturas - reservado) };
+}
+
+// ---------- Futuro: saldo estimado dia a dia ----------
+// Parte do saldo de hoje e, a cada dia: + entradas previstas, − contas previstas, − faturas no vencimento
+// (lançado + estimativa pelo orçado), − orçado ainda livre sem data, espalhado por igual nos dias do mês.
+// Gasto com data (previsto) sai no dia dele; só o que sobra do orçado é espalhado. O último dia do mês
+// atual fecha com o mesmo valor de fechamentoMesAtual. Previsto e fatura atrasados entram hoje.
+export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
+  const mes0 = monthOf(hoje);
+  const fimTotal = lastDayOfMonth(addMonthKey(mes0, meses));
+  const mov = new Map();
+  const add = (data, m) => {
+    const d = data < hoje ? hoje : data;
+    if (d > fimTotal) return;
+    if (!mov.has(d)) mov.set(d, []);
+    mov.get(d).push(m);
+  };
+  S.get('Lancamentos').forEach(l => {
+    if (l.situacao !== 'previsto' || l.forma === 'cartao') return;
+    add(l.data, { tipo: sign(l) > 0 ? 'entrada' : 'saida', descricao: l.descricao, valor: round2(sign(l) * l.valor), categoria_id: l.categoria_id, id: l.id, atrasado: l.data < hoje });
+  });
+  const abertas = new Set();
+  cartoes(S, true).forEach(c => faturasDoCartao(S, c.id, hoje).forEach(f => {
+    if (f.situacao === 'paga') return;
+    if (f.data_fechamento > hoje) abertas.add(f.id);
+    const v = round2(f.total + f.estimativa);
+    if (v <= 0) return;
+    add(f.data_vencimento, { tipo: 'fatura', descricao: `Fatura ${c.nome}`, valor: -v, lancado: f.total, estimativa: f.estimativa, fatura_id: f.id, atrasado: f.data_vencimento < hoje });
+  }));
+  const porMes = {};
+  for (let i = 0; i <= meses; i++) {
+    const mes = addMonthKey(mes0, i);
+    const ini = i === 0 ? hoje : `${mes}-01`;
+    const fim = lastDayOfMonth(mes);
+    let livre = 0, receber = 0;
+    categorias(S).forEach(c => {
+      if (c.sistema) return;
+      const resto = Math.max(0, catMes(S, c.id, mes).disponivel);
+      if (!resto) return;
+      if (c.tipo === 'entrada') { receber += resto; return; }
+      // Categoria paga no cartão, com a fatura do mês ainda aberta: já está na estimativa da fatura.
+      if (String(c.forma_prevista || '').startsWith('cartao:') && abertas.has(`${c.forma_prevista.slice(7)}_${mes}`)) return;
+      livre += resto;
+    });
+    receber = round2(receber); livre = round2(livre);
+    if (receber) add(fim, { tipo: 'entrada', descricao: 'Entradas orçadas ainda sem data', valor: receber, orcado: true });
+    const dias = daysBetween(ini, fim) + 1;
+    const centavos = Math.round(livre * 100);
+    const base = Math.floor(centavos / dias);
+    porMes[mes] = { mes, ini, fim, livre, dias, porDia: base / 100, ultimoDia: (centavos - base * (dias - 1)) / 100 };
+  }
+  let saldo = saldoAtual(S);
+  const dias = [];
+  for (let d = hoje; d <= fimTotal; d = addDays(d, 1)) {
+    const pm = porMes[monthOf(d)];
+    const variavel = pm ? (d === pm.fim ? pm.ultimoDia : pm.porDia) : 0;
+    const ms = mov.get(d) || [];
+    saldo = round2(saldo + ms.reduce((t, m) => t + m.valor, 0) - variavel);
+    dias.push({ data: d, movimentos: ms, variavel, saldo });
+  }
+  return { saldoInicial: saldoAtual(S), dias, porMes };
 }
 
 export function fechamentoMesAtual(S, hoje = todayISO()) {

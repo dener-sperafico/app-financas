@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=20';
-import { MockBackend } from './mock.js?v=20';
-import { Store } from './store.js?v=20';
-import { objToRow } from './schema.js?v=20';
-import * as M from './model.js?v=20';
-import { interpretar, previstoParecido } from './parser.js?v=20';
-import { ic, icCategoria } from './icones.js?v=20';
+import { GoogleBackend, AuthError } from './google.js?v=22';
+import { MockBackend } from './mock.js?v=22';
+import { Store } from './store.js?v=22';
+import { objToRow } from './schema.js?v=22';
+import * as M from './model.js?v=22';
+import { interpretar, previstoParecido } from './parser.js?v=22';
+import { ic, icCategoria } from './icones.js?v=22';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=20';
+} from './util.js?v=22';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -93,6 +93,7 @@ function screen(r) {
     case 'lancamentos': return scrLancamentos(r.q);
     case 'mes': return r.arg2 ? scrMesCategoria(r.arg, r.arg2) : scrMes(r.arg || monthOf(hoje()));
     case 'pendentes': return scrPendentes();
+    case 'futuro': return scrFuturo();
     case 'mais': return scrMais();
     case 'cartoes': return scrCartoes();
     case 'cartao': return scrCartao(r.arg);
@@ -104,10 +105,12 @@ function screen(r) {
 
 function nav(r) {
   const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup'].includes(r.name);
+  // No celular, Futuro é aberto pela Início; a aba Início fica marcada.
   const ativo = {
-    inicio: r.name === 'inicio' || r.name === 'pendentes',
+    inicio: r.name === 'inicio' || r.name === 'pendentes' || (r.name === 'futuro' && !DESK()),
     lancamentos: r.name === 'lancamentos',
     mes: r.name === 'mes',
+    futuro: r.name === 'futuro',
     mais: naMais,
     cartoes: ['cartoes', 'cartao'].includes(r.name),
     categorias: r.name === 'categorias',
@@ -121,6 +124,7 @@ function nav(r) {
     ${item('inicio', 'Início', '#/inicio', 'house')}
     ${item('lancamentos', 'Lançamentos', '#/lancamentos', 'list')}
     ${item('mes', 'Mês', '#/mes', 'calendar-range')}
+    ${item('futuro', 'Futuro', '#/futuro', 'chart-no-axes-column', 'so-desk')}
     ${item('cartoes', 'Cartões', '#/cartoes', 'credit-card', 'so-desk')}
     ${item('categorias', 'Categorias', '#/categorias', 'tag', 'so-desk')}
     ${item('config', 'Configurações', '#/mais', 'settings', 'so-desk')}
@@ -298,7 +302,7 @@ function scrInicio() {
   const porCategoria = res.linhas.filter(x => x.categoria.tipo === 'saida' && !x.categoria.sistema && x.orcado)
     .sort((a, b) => (b.disponivel < 0) - (a.disponivel < 0) || b.uso - a.uso).slice(0, 5);
   return `${desk ? composer(true) : ''}${banners()}
-    <div class="cabecalho"><img class="marca-ic" src="icons/oikon.svg" alt="Oikon"></div>
+    <div class="cabecalho"><img class="marca-ic" src="icons/oikon.svg" alt="Oikon"><a class="chip" href="#/futuro">${ic('chart-no-axes-column')}Futuro</a></div>
     ${semSaldo || semOrc ? `<div class="card info stack" style="margin-bottom:var(--esp-4)"><b>Falta pouco para a casa ficar pronta</b>
       ${semSaldo ? '<a href="#/setup/saldo">Informar quanto tem na conta</a>' : ''}
       ${semOrc ? `<a href="#/setup/orcamento">Orçar ${monthName(mes, false)}</a>` : ''}
@@ -593,6 +597,81 @@ function scrMesCategoria(mes, catId) {
 
 // ---------- Categoria no mês ----------
 
+// ---------- Futuro: saldo estimado dia a dia, 12 meses ----------
+function scrFuturo() {
+  const p = M.projecaoDiaria(S);
+  const meses = Object.keys(p.porMes);
+  const fechamento = meses.map(mes => ({ mes, saldo: p.dias.filter(d => d.data.startsWith(mes)).at(-1)?.saldo ?? 0 }));
+  const menor = p.dias.reduce((a, d) => (d.saldo < a.saldo ? d : a), p.dias[0]);
+  const negativos = p.dias.filter(d => d.saldo < 0);
+  let alerta;
+  if (negativos.length) {
+    const ini = negativos[0].data;
+    let fim = ini;
+    for (const d of p.dias.slice(p.dias.indexOf(negativos[0]))) { if (d.saldo < 0) fim = d.data; else break; }
+    alerta = aviso('err', '', `O saldo fica negativo ${ini === fim ? `em ${fmtDate(ini)}` : `de ${fmtDate(ini)} a ${fmtDate(fim)}`}. Menor saldo: ${money(menor.saldo)} em ${fmtDate(menor.data)}.`);
+  } else {
+    alerta = aviso('', '', `Menor saldo nos próximos 12 meses: <b class="num">${money(menor.saldo)}</b> em ${fmtDate(menor.data, true)}.`);
+  }
+  const pior = fechamento.reduce((a, f) => (f.saldo < a.saldo ? f : a), fechamento[0]);
+  const frase = pior.saldo < 0
+    ? `Em ${monthName(pior.mes, false)}, deve faltar ${money(-pior.saldo)}.`
+    : `O mês que fecha mais apertado é ${monthName(pior.mes, false)}, com ${money(pior.saldo)}.`;
+  return `${banners()}
+    <div class="top">${backBtn('#/inicio')}</div>
+    <h1>Futuro</h1>
+    <p class="apoio" style="margin:var(--esp-1) 0 var(--esp-4)">Quanto deve ter na conta em cada dia, pelo que está previsto e orçado.</p>
+    ${alerta}
+    <div class="card stack">
+      <h2>Fim de cada mês</h2>
+      ${graficoFechamento(fechamento)}
+      <p class="small muted">${frase} Toque num mês para ver os dias.</p>
+    </div>
+    ${meses.map(mes => blocoMesFuturo(p, mes)).join('')}
+    <p class="small muted secao">Gasto com data sai no dia dele. O que ainda sobra do orçado sem data é espalhado por igual pelos dias do mês; nas categorias pagas no cartão, entra na fatura. Meses sem orçado mostram só o que já está previsto.</p>`;
+}
+
+// Gráfico de barras do fechamento (8.16): violeta com sobra, vermelho abaixo de zero, marcador âmbar no mês atual.
+function graficoFechamento(fs) {
+  const maxPos = Math.max(0, ...fs.map(f => f.saldo));
+  const maxNeg = Math.max(0, ...fs.map(f => -f.saldo));
+  const total = maxPos + maxNeg || 1;
+  const altPos = (maxPos / total) * 100, altNeg = (maxNeg / total) * 100;
+  const atual = monthOf(hoje());
+  return `<div class="grafico" role="list" aria-label="Saldo no fim de cada mês">${fs.map((f, i) => {
+    const h = (Math.abs(f.saldo) / total) * 100;
+    const neg = f.saldo < 0;
+    return `<button class="col ${f.mes === atual ? 'atual' : ''} ${i % 2 ? 'impar' : ''}" role="listitem" data-act="ir-mes" data-mes="${f.mes}" aria-label="${cap(monthName(f.mes))}: ${neg ? 'deve faltar' : 'deve sobrar'} ${money(Math.abs(f.saldo))}">
+      <span class="val num ${neg ? 'neg' : ''}">${formatarReais(f.saldo, { inteiro: true })}</span>
+      <span class="area pos" style="height:${altPos}%">${neg ? '' : `<i style="height:${(h / (altPos || 1)) * 100}%"></i>`}</span>
+      <span class="area negs" style="height:${altNeg}%">${neg ? `<i style="height:${(h / (altNeg || 1)) * 100}%"></i>` : ''}</span>
+      <span class="mes">${monthShort(f.mes).split('/')[0]}</span></button>`;
+  }).join('')}</div>`;
+}
+
+function blocoMesFuturo(p, mes) {
+  const pm = p.porMes[mes];
+  const dias = p.dias.filter(d => d.data.startsWith(mes));
+  if (!dias.length) return '';
+  const fim = dias.at(-1);
+  const menor = dias.reduce((a, d) => (d.saldo < a.saldo ? d : a), dias[0]);
+  const hojeISO = hoje();
+  // Mostra os dias com movimento, o primeiro (hoje), o de menor saldo e o último do mês.
+  const mostrar = dias.filter(d => d.movimentos.length || d.data === hojeISO || d === menor || d === fim);
+  const linha = d => {
+    const movs = d.movimentos.map(m => `<span class="mv"><span>${esc(m.descricao)}${m.atrasado ? ' <span class="badge pend">atrasado</span>' : ''}${m.tipo === 'fatura' && m.estimativa ? `<span class="s"> · ${money(m.lancado)} lançado + ${money(m.estimativa)} estimado</span>` : ''}</span><span class="num ${m.valor > 0 ? 'pos' : ''}">${formatarReais(m.valor, { sinal: true })}</span></span>`).join('');
+    const marcas = [d === menor && dias.length > 1 ? '<span class="badge prev">menor saldo do mês</span>' : '', d === fim ? '<span class="badge envio">fim do mês</span>' : ''].join(' ');
+    return `<div class="item dia-fut ${d.saldo < 0 ? 'negativo' : ''}">
+      <span class="meio"><span class="t">${d.data === hojeISO ? 'Hoje' : rotuloDia(d.data)} ${marcas}</span>${movs ? `<span class="mvs">${movs}</span>` : ''}</span>
+      <span class="r"><span class="num ${d.saldo < 0 ? 'neg' : ''}">${money(d.saldo)}</span><span class="small muted">no fim do dia</span></span></div>`;
+  };
+  return `<section class="secao" id="mes-${mes}">
+    <h2 class="section-title">${cap(monthName(mes))}<span class="r num ${fim.saldo < 0 ? 'neg' : ''}">${fim.saldo < 0 ? 'deve faltar' : 'deve sobrar'} ${money(Math.abs(fim.saldo))}</span></h2>
+    ${pm && pm.livre ? `<p class="small muted" style="margin:-4px 0 var(--esp-3)">Gastos do dia a dia, pelo orçado ainda livre: ${money(pm.livre)}, cerca de ${money(pm.porDia)} por dia.</p>` : ''}
+    <div class="list">${mostrar.map(linha).join('')}</div>
+  </section>`;
+}
+
 // ---------- Mais ----------
 function scrMais() {
   const q = S.queue.length;
@@ -606,6 +685,7 @@ function scrMais() {
         <div class="btns">${sheetLink('Abrir no Google Drive')}<button class="btn" data-act="sync">${ic('refresh-cw')}Sincronizar agora</button></div>
       </div>
       <div class="list">
+        ${ir('#/futuro', 'chart-no-axes-column', 'Futuro: saldo dia a dia')}
         ${ir('#/cartoes', 'credit-card', 'Cartões e faturas')}
         ${ir('#/categorias', 'tag', 'Categorias')}
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
@@ -983,7 +1063,7 @@ function composicaoPanel() {
       ${linha('Orçado que ainda pode ser gasto', fd.reservado, '−')}
       <div class="kv total"><span>= No fim do mês, deve ${fd.total < 0 ? 'faltar' : 'sobrar'}</span><span class="num ${fd.total < 0 ? 'neg' : ''}">${money(Math.abs(fd.total))}</span></div>
     </div>
-    <div class="btns" style="margin-top:var(--esp-5)"><a class="btn" href="#/mes">${ic('calendar-range')}Ver o mês</a><a class="btn" href="#/pendentes">${ic('check')}Para confirmar</a></div>`;
+    <div class="btns" style="margin-top:var(--esp-5)"><a class="btn" href="#/futuro">${ic('chart-no-axes-column')}Ver o futuro</a><a class="btn" href="#/mes">${ic('calendar-range')}Ver o mês</a><a class="btn" href="#/pendentes">${ic('check')}Para confirmar</a></div>`;
 }
 
 
@@ -1262,7 +1342,7 @@ function passosTutorial() {
           ${kv('Saldo na conta hoje', '')}${kv('+ O que ainda vai entrar', '')}${kv('− Contas previstas e faturas', '')}${kv('− Orçado que ainda pode ser gasto', '')}
           ${kv('= No fim do mês, deve sobrar', '', 'total')}</div>
         <p>O Oikon conta que você vai gastar todo o orçado. Se gastar menos, sobra mais. Assim a previsão não promete dinheiro que pode não existir.</p>
-        <p>O <b>Saldo na conta</b>, logo abaixo, mostra só o que já aconteceu.</p>`,
+        <p>O <b>Saldo na conta</b>, logo abaixo, mostra só o que já aconteceu. Em <b>Futuro</b>, você vê o saldo de cada dia dos próximos 12 meses. O que sobra num mês continua na conta e é o ponto de partida do mês seguinte.</p>`,
     },
     {
       grupo: METODO, icone: 'piggy-bank', titulo: 'Guarde primeiro, e cada mês recomeça',
@@ -1426,6 +1506,7 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
+  'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
   tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
   'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
   'tutorial-fim'() { marcarTutorial(); closeModal(); },
@@ -1665,7 +1746,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=20', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=22', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

@@ -421,3 +421,30 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .tutorial .exemplo.calc .kv { font-size: var(--txt-apoio); padding: 5px 0; }
 .tutorial .exemplo .orc-linha .t, .tutorial .exemplo .orc-linha .num { font-size: var(--txt-apoio); }
 .passos .n svg.ic { width: 16px; height: 16px; }
+
+/* ---------- Futuro (8.16) ---------- */
+.cabecalho .chip svg.ic { width: 20px; height: 20px; }
+.grafico { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 180px; padding-top: var(--esp-2); }
+.grafico .col { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--raio-p); }
+.grafico .col:hover, .grafico .col:focus-visible { background: var(--cor-lavanda-leve); }
+.grafico .area { display: flex; justify-content: center; }
+.grafico .area.pos { align-items: flex-end; border-bottom: 1px solid var(--cor-borda-forte); }
+.grafico .area.negs { align-items: flex-start; }
+.grafico .area i { display: block; width: 60%; min-height: 2px; background: var(--cor-violeta); }
+.grafico .area.pos i { border-radius: 6px 6px 0 0; }
+.grafico .area.negs i { background: var(--cor-negativo); border-radius: 0 0 6px 6px; }
+.grafico .mes { font-size: var(--txt-legenda); color: var(--cor-texto-3); text-align: center; padding-top: 4px; }
+.grafico .col.atual .mes { color: var(--cor-noite); font-weight: 800; }
+.grafico .col.atual .mes::before { content: ""; display: block; width: 16px; height: 3px; margin: 0 auto 3px; border-radius: 2px; background: var(--cor-ambar); }
+.grafico .val { position: absolute; top: -6px; left: 50%; transform: translate(-50%, -100%); z-index: 2; display: none; padding: 4px 8px; border-radius: var(--raio-p); background: var(--cor-noite); color: #fff; font-size: var(--txt-legenda); }
+.grafico .val.neg { color: #fff; }
+.grafico .col:hover .val, .grafico .col:focus-visible .val { display: block; }
+.dia-fut { align-items: flex-start; }
+.dia-fut .mvs { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.dia-fut .mv { display: flex; justify-content: space-between; gap: var(--esp-3); font-size: var(--txt-legenda); color: var(--cor-texto-2); }
+.dia-fut .mv .num { font-size: var(--txt-legenda); }
+.dia-fut .mv .s { color: var(--cor-texto-3); }
+.dia-fut.negativo { background: var(--cor-negativo-fundo); border-color: transparent; }
+.dia-fut .r .num { font-size: var(--txt-numero-p); }
+@media (min-width: 960px) { .grafico { height: 220px; } }
+@media (max-width: 520px) { .grafico .col.impar:not(.atual) .mes { visibility: hidden; } }
