@@ -120,10 +120,23 @@ export function resumoMes(S, mes) {
   const guardadoPrevisto = soma('investimento', 'previsto');
   const guardadoOrcado = soma('investimento', 'orcado');
   const dispSaidas = round2(saidas.orcado - saidas.realizado - saidas.previsto);
+  // Projeção por grupo: em cada categoria vale o maior entre o orçado e o realizado + previsto.
+  const proj = tipo => round2(linhas.filter(x => x.categoria.tipo === tipo && !x.categoria.arquivada)
+    .reduce((t, x) => t + Math.max(x.orcado || 0, x.realizado + x.previsto), 0));
+  const livre = tipo => round2(linhas.filter(x => x.categoria.tipo === tipo && !x.categoria.sistema && x.orcado !== null)
+    .reduce((t, x) => t + Math.max(0, x.disponivel), 0));
+  const acima = tipo => round2(linhas.filter(x => x.categoria.tipo === tipo && x.disponivel < 0)
+    .reduce((t, x) => t - x.disponivel, 0));
+  entradas.projecao = proj('entrada'); saidas.projecao = proj('saida');
+  saidas.livre = livre('saida'); saidas.acima = acima('saida');
+  saidas.estouradas = linhas.filter(x => x.categoria.tipo === 'saida' && x.orcado !== null && x.disponivel < 0).length;
+  const guardadoProjecao = proj('investimento');
   return {
-    linhas, entradas, saidas, guardado, guardadoPrevisto, guardadoOrcado,
+    linhas, entradas, saidas, guardado, guardadoPrevisto, guardadoOrcado, guardadoProjecao,
     percGuardado: entradas.realizado > 0 ? guardado / entradas.realizado : 0,
     dispSaidas,
+    sobraOrcada: round2(entradas.orcado - saidas.orcado - guardadoOrcado),
+    sobraProjetada: round2(entradas.projecao - saidas.projecao - guardadoProjecao),
   };
 }
 
@@ -171,26 +184,33 @@ export function pendentes(S, hoje = todayISO()) {
 
 // Fechamento previsto do mês atual (N26, exceção do mês atual):
 // parte do saldo de hoje e desconta só o que ainda falta acontecer.
-export function fechamentoMesAtual(S, hoje = todayISO()) {
+// Fechamento do mês atual, separado nas partes que o compõem.
+export function fechamentoDetalhe(S, hoje = todayISO()) {
   const mes = monthOf(hoje);
   const fim = lastDayOfMonth(mes);
-  let v = saldoAtual(S);
+  const saldo = saldoAtual(S);
+  let receber = 0, pagar = 0, faturas = 0, reservado = 0;
   S.get('Lancamentos').forEach(l => {
-    if (l.situacao === 'previsto' && l.forma !== 'cartao' && l.data <= fim) v += sign(l) * l.valor;
+    if (l.situacao !== 'previsto' || l.forma === 'cartao' || l.data > fim) return;
+    if (sign(l) > 0) receber += l.valor; else pagar += l.valor;
   });
   const vistos = new Set();
   [...S.get('Faturas').map(f => f.id), ...S.get('Lancamentos').filter(l => l.fatura_id).map(l => l.fatura_id)].forEach(id => {
     if (vistos.has(id)) return; vistos.add(id);
     const f = faturaInfoFromId(S, id);
-    if (f && f.situacao !== 'paga' && f.data_vencimento <= fim) v -= faturaTotal(S, id);
+    if (f && f.situacao !== 'paga' && f.data_vencimento <= fim) faturas += faturaTotal(S, id);
   });
   categorias(S).forEach(c => {
     if (c.sistema) return;
-    const x = catMes(S, c.id, mes);
-    const resto = Math.max(0, x.disponivel);
-    v += c.tipo === 'entrada' ? resto : -resto;
+    const resto = Math.max(0, catMes(S, c.id, mes).disponivel);
+    if (c.tipo === 'entrada') receber += resto; else reservado += resto;
   });
-  return round2(v);
+  receber = round2(receber); pagar = round2(pagar); faturas = round2(faturas); reservado = round2(reservado);
+  return { mes, fim, saldo, receber, pagar, faturas, reservado, total: round2(saldo + receber - pagar - faturas - reservado) };
+}
+
+export function fechamentoMesAtual(S, hoje = todayISO()) {
+  return fechamentoDetalhe(S, hoje).total;
 }
 
 // ---------- Lançamentos e recorrências ----------

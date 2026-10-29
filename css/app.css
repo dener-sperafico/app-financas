@@ -142,3 +142,14 @@ form { margin: 0; }
   .modal { border-radius: 18px; max-height: 88vh; }
   .toast { bottom: 100px; }
 }
+
+/* Composição de valores (previsão, resumo do mês) */
+.calc { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.calc .kv { gap: 12px; font-size: 14px; padding: 2px 0; border-bottom: 0; }
+.calc .kv.total { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; font-weight: 700; }
+table.resumo { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.resumo th, table.resumo td { padding: 6px 0 6px 8px; text-align: right; border-top: 1px solid var(--line); }
+table.resumo thead th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+table.resumo th[scope="row"] { text-align: left; padding-left: 0; font-weight: 600; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+a.item { color: inherit; text-decoration: none; }

@@ -61,12 +61,20 @@ export class GoogleBackend {
   }
 
   // Precisa ser chamado a partir de um toque do usuário (o Google abre uma janela).
-  signIn(hint) {
+  // silent: não mostra escolha de conta nem consentimento; se o Google precisar perguntar algo, falha.
+  signIn(hint, { silent = false } = {}) {
     if (!this.tokenClient) return Promise.reject(new AuthError('not-ready'));
-    return new Promise((resolve, reject) => {
-      this.pending = { resolve, reject };
-      this.tokenClient.requestAccessToken({ prompt: '', login_hint: hint || undefined });
-    });
+    if (this.pending) return this.pending.promise;
+    let resolve, reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    this.pending = { resolve, reject, promise };
+    this.tokenClient.requestAccessToken({ prompt: silent ? 'none' : '', login_hint: hint || undefined });
+    return promise;
+  }
+
+  // Minutos até a conexão vencer (0 se já venceu).
+  minutesLeft() {
+    return this.token ? Math.max(0, (this.token.exp - Date.now()) / 60000) : 0;
   }
 
   signOut() {

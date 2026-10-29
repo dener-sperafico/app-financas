@@ -21,9 +21,27 @@ function route() {
   const h = location.hash.replace(/^#\/?/, '');
   const [path, qs] = h.split('?');
   const parts = path.split('/');
-  return { name: parts[0] || '', arg: parts[1] || '', q: new URLSearchParams(qs || '') };
+  return { name: parts[0] || '', arg: parts[1] || '', arg2: parts[2] || '', q: new URLSearchParams(qs || '') };
 }
 const go = h => { if (location.hash === h) render(); else location.hash = h; };
+
+// Histórico de telas desta sessão, para o botão Voltar saber se pode voltar de verdade.
+const NAV_KEY = 'af_nav';
+let navStack = [];
+try { navStack = JSON.parse(sessionStorage.getItem(NAV_KEY) || '[]'); } catch { navStack = []; }
+let navReplace = false;
+function trackNav() {
+  const h = location.hash || '#/inicio';
+  if (navReplace) { navStack[navStack.length - 1] = h; navReplace = false; }
+  else if (navStack[navStack.length - 2] === h) navStack.pop();
+  else if (navStack[navStack.length - 1] !== h) navStack.push(h);
+  if (navStack.length > 50) navStack = navStack.slice(-50);
+  try { sessionStorage.setItem(NAV_KEY, JSON.stringify(navStack)); } catch { /* ignora */ }
+}
+trackNav();
+// Troca de mês dentro da mesma tela: não empilha.
+const swap = h => { navReplace = true; location.replace(h); };
+const backBtn = fallback => `<button class="back" data-act="back" data-href="${fallback}" aria-label="Voltar"><span aria-hidden="true">‹</span> Voltar</button>`;
 
 const ICON = {
   inicio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
@@ -72,7 +90,7 @@ function screen(r) {
     case 'setup': return scrSetup(r.arg || 'planilha');
     case 'inicio': return scrInicio();
     case 'lancamentos': return scrLancamentos(r.q);
-    case 'mes': return scrMes(r.arg || monthOf(hoje()));
+    case 'mes': return r.arg2 ? scrMesCategoria(r.arg, r.arg2) : scrMes(r.arg || monthOf(hoje()));
     case 'pendentes': return scrPendentes();
     case 'mais': return scrMais();
     case 'cartoes': return scrCartoes();
@@ -108,7 +126,7 @@ function banners() {
   if (ui.sheetError === 'notfound') out.push(`<div class="banner err"><span>A planilha não foi encontrada: foi apagada, movida para a lixeira ou deixou de ser compartilhada com você.</span><a class="btn" href="#/mais">Opções</a></div>`);
   if (ui.sheetError === 'noperm') out.push(`<div class="banner err"><span>Sua conta pode ver a planilha, mas não editar. Peça para compartilharem com permissão de edição.</span></div>`);
   if (!st.online) out.push(`<div class="banner warn"><span>Sem internet${q ? ` · ${q} ${q === 1 ? 'alteração aguardando' : 'alterações aguardando'} envio` : ''}. Lançar continua funcionando.</span></div>`);
-  else if (st.authNeeded) out.push(`<div class="banner warn"><span>A conexão com o Google expirou${q ? ` · ${q} aguardando envio` : ''}.</span><button class="btn" data-act="reconnect">Reconectar</button></div>`);
+  else if (st.authNeeded && auth.falhou) out.push(`<div class="banner warn"><span>A conexão com o Google expirou${q ? ` · ${q} aguardando envio` : ''}.</span><button class="btn" data-act="reconnect">Reconectar</button></div>`);
   else if (st.error) out.push(`<div class="banner err"><span>Não foi possível sincronizar: ${esc(st.error)}</span><button class="btn" data-act="sync">Tentar de novo</button></div>`);
   else if (q && S.syncing) out.push(`<div class="banner info"><span>Enviando ${q} ${q === 1 ? 'alteração' : 'alterações'} para a planilha…</span></div>`);
   S.notices.forEach(n => out.push(`<div class="banner info"><span>${esc(n.text)}</span><button class="btn" data-act="notice-ok" data-id="${n.id}">Ok</button></div>`));
@@ -134,7 +152,8 @@ function scrLogin() {
 const STEPS = ['planilha', 'saldo', 'cartoes', 'orcamento', 'compartilhar'];
 function steps(cur) {
   const i = STEPS.indexOf(cur);
-  return `<div class="steps" aria-label="Etapa ${i + 1} de ${STEPS.length}">${STEPS.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</div>
+  const configurado = S.spreadsheet && S.get('Lancamentos').length;
+  return `${configurado && navStack.length > 1 ? `<div class="top">${backBtn('#/mais')}</div>` : ''}<div class="steps" aria-label="Etapa ${i + 1} de ${STEPS.length}">${STEPS.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</div>
     <div class="small muted">Etapa ${i + 1} de ${STEPS.length}</div>`;
 }
 
@@ -240,7 +259,7 @@ function scrInicio() {
   const mes = monthOf(hoje());
   const pend = M.pendentes(S);
   const saldo = M.saldoAtual(S);
-  const fech = M.fechamentoMesAtual(S);
+  const fd = M.fechamentoDetalhe(S);
   const res = M.resumoMes(S, mes);
   const atencao = res.linhas.filter(x => x.categoria.tipo !== 'entrada' && !x.categoria.sistema && x.orcado && x.uso >= 0.8)
     .sort((a, b) => b.uso - a.uso);
@@ -260,12 +279,8 @@ function scrInicio() {
         ${semSaldo ? '<a href="#/setup/saldo">Informar o saldo atual</a>' : ''}
         ${semOrc ? `<a href="#/setup/orcamento">Orçar ${monthName(mes, false)}</a>` : ''}
         ${!M.cartoes(S).length ? '<a href="#/setup/cartoes">Cadastrar cartões</a>' : ''}</div>` : ''}
-      <div class="grid2">
-        <a class="card" href="#/saldo" style="text-decoration:none;color:inherit"><div class="label">Saldo atual</div><div class="big num ${saldo < 0 ? 'neg' : ''}">${money(saldo)}</div><div class="small muted">Só confirmados</div></a>
-        <div class="card"><div class="label">Fechamento previsto</div><div class="big num ${fech < 0 ? 'neg' : ''}">${money(fech)}</div><div class="small muted">Em ${fmtDate(lastDay(mes))}, com previstos e orçado restante</div></div>
-      </div>
-      <a class="card" href="#/mes" style="text-decoration:none;color:inherit"><div class="row"><div><div class="label">Orçamento de saídas · ${monthName(mes, false)}</div><div class="big num ${res.dispSaidas < 0 ? 'neg' : ''}">${money(res.dispSaidas)} <span class="small muted" style="font-weight:400">disponível</span></div></div><span aria-hidden="true">›</span></div>
-        <div class="small muted">Orçado ${money(res.saidas.orcado)} · realizado ${money(res.saidas.realizado)} · previsto ${money(res.saidas.previsto)}</div></a>
+      <a class="card" href="#/saldo" style="text-decoration:none;color:inherit"><div class="row"><div><div class="label">Saldo atual</div><div class="big num ${saldo < 0 ? 'neg' : ''}">${money(saldo)}</div><div class="small muted">O que está na conta hoje: só lançamentos confirmados</div></div><span aria-hidden="true">›</span></div></a>
+      ${previsaoCard(fd, res, mes)}
       ${atencao.length ? `<div class="card stack"><div class="label">Atenção no mês</div>${atencao.slice(0, 4).map(x => `<div class="row"><span>${esc(x.categoria.nome)} · ${x.uso > 1 ? '<span class="badge est">estourou</span>' : `${Math.round(x.uso * 100)}% usado`}</span><span class="num ${x.disponivel < 0 ? 'neg' : ''}">${x.disponivel < 0 ? '− ' + money(-x.disponivel) : 'restam ' + money(x.disponivel)}</span></div>`).join('')}</div>` : ''}
       <div class="section-title">Atalhos</div>
       <div class="grid2">
@@ -279,6 +294,29 @@ function scrInicio() {
 }
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Card único: quanto deve sobrar no fim do mês, de onde vem esse número e como estão as saídas.
+function previsaoCard(fd, res, mes) {
+  const linha = (rot, v, sinal) => v ? `<div class="kv"><span>${sinal} ${rot}</span><span class="num">${money(v)}</span></div>` : '';
+  const sa = res.saidas;
+  const usado = round2(sa.realizado + sa.previsto);
+  const pct = sa.orcado ? Math.min(100, Math.round((usado / sa.orcado) * 100)) : 0;
+  const cls = sa.orcado && usado > sa.orcado ? 'over' : pct >= 80 ? 'near' : '';
+  return `<a class="card stack" href="#/mes" style="text-decoration:none;color:inherit">
+    <div class="row"><div><div class="label">Previsão para ${fmtDate(fd.fim)}</div><div class="big num ${fd.total < 0 ? 'neg' : ''}">${money(fd.total)}</div><div class="small muted">Quanto deve sobrar na conta no fim de ${monthName(mes, false)}</div></div><span aria-hidden="true">›</span></div>
+    <div class="calc">
+      <div class="kv"><span>Saldo atual</span><span class="num">${money(fd.saldo)}</span></div>
+      ${linha('A receber', fd.receber, '+')}
+      ${linha('Contas previstas', fd.pagar, '−')}
+      ${linha('Faturas a pagar', fd.faturas, '−')}
+      ${linha('Orçado que ainda pode ser gasto', fd.reservado, '−')}
+      <div class="kv total"><span>= Previsão</span><span class="num">${money(fd.total)}</span></div>
+    </div>
+    ${sa.orcado ? `<div><div class="row small"><b>Saídas de ${monthName(mes, false)}</b><span class="num">${money(usado)} de ${money(sa.orcado)}</span></div>
+      <div class="bar ${cls}"><i style="width:${pct}%"></i></div>
+      <div class="small muted" style="margin-top:4px">Ainda cabe ${money(sa.livre)} no orçado${sa.estouradas ? ` · ${sa.estouradas} ${sa.estouradas === 1 ? 'categoria passou' : 'categorias passaram'} ${money(sa.acima)}` : ''}</div></div>` : ''}
+  </a>`;
+}
 const lastDay = mes => lastDayOfMonth(mes);
 
 function pendRow(p) {
@@ -316,8 +354,8 @@ function scrLancamentos(q) {
   const cat = q.get('cat');
   const link = (m) => `#/lancamentos?mes=${m}${cat ? '&cat=' + cat : ''}`;
   return `${banners()}
-    <div class="top"><h1>Lançamentos</h1></div>
-    <div class="row" style="margin-bottom:10px"><a class="btn" href="${link(addMonthKey(mes, -1))}" aria-label="Mês anterior">‹</a><b>${cap(monthName(mes))}</b><a class="btn" href="${link(addMonthKey(mes, 1))}" aria-label="Mês seguinte">›</a></div>
+    <div class="top">${cat ? backBtn(`#/mes/${mes}`) : ''}<h1>Lançamentos</h1><span></span></div>
+    <div class="row" style="margin-bottom:10px"><a class="btn" href="${link(addMonthKey(mes, -1))}" data-swap aria-label="Mês anterior">‹</a><b>${cap(monthName(mes))}</b><a class="btn" href="${link(addMonthKey(mes, 1))}" data-swap aria-label="Mês seguinte">›</a></div>
     ${cat ? `<div class="banner info"><span>Categoria: <b>${esc(M.categoria(S, cat)?.nome || '')}</b> · pelo mês do orçamento</span><a class="btn" href="#/lancamentos?mes=${mes}">Limpar</a></div>` : ''}
     <label class="field" style="margin-bottom:12px"><span class="hidden">Buscar</span><input data-search placeholder="Buscar por texto" value="${esc(ui.search)}"></label>
     <div id="lanc-list">${lancList(mes, cat)}</div>`;
@@ -339,7 +377,7 @@ function lancList(mes, cat) {
 function scrPendentes() {
   const pend = M.pendentes(S);
   return `${banners()}
-    <div class="top"><a class="back" href="#/inicio">‹ Início</a></div>
+    <div class="top">${backBtn('#/inicio')}</div>
     <h1>Pendentes (${pend.length})</h1>
     <p class="muted small">A data já passou e ainda não foram confirmados. Continuam contando na previsão até vocês decidirem. Para adiar, edite a data; para cancelar, exclua.</p>
     ${pend.length ? `<div class="card stack">${pend.map(pendRow).join('')}</div>` : '<p class="muted">Nada pendente.</p>'}`;
@@ -354,7 +392,7 @@ function scrMes(mes) {
     const ls = todas.filter(x => !vazias.includes(x))
       .sort((a, b) => (b.disponivel < 0) - (a.disponivel < 0) || (b.uso === Infinity ? 9 : b.uso) - (a.uso === Infinity ? 9 : a.uso));
     if (!todas.length) return '';
-    const semOrc = vazias.length ? `<div class="small muted" style="margin-top:8px">Sem orçado neste mês: ${vazias.map(x => `<button class="btn link small" data-act="orcado" data-cat="${esc(x.categoria.id)}" data-mes="${mes}">${esc(x.categoria.nome)}</button>`).join(' · ')}</div>` : '';
+    const semOrc = vazias.length ? `<div class="small muted" style="margin-top:8px">Sem orçado neste mês: ${vazias.map(x => `<a class="btn link small" href="#/mes/${mes}/${esc(x.categoria.id)}">${esc(x.categoria.nome)}</a>`).join(' · ')}</div>` : '';
     if (!ls.length) return `<div class="section-title">${titulo}</div>${semOrc}`;
     return `<div class="section-title">${titulo}</div><div class="list">${ls.map(x => {
       const c = x.categoria;
@@ -365,23 +403,79 @@ function scrMes(mes) {
       const right = tipo === 'entrada'
         ? `<span class="num">${money(x.realizado)}</span><br><span class="s">de ${x.orcado !== null ? money(x.orcado) : '—'}</span>`
         : x.orcado === null ? `<span class="s">sem orçado</span>` : `<span class="num ${est ? 'neg' : ''}">${est ? '− ' + money(-x.disponivel) : money(x.disponivel)}</span><br><span class="s">${est ? 'acima' : 'disponível'}</span>`;
-      return `<button class="item" data-act="orcado" data-cat="${esc(c.id)}" data-mes="${mes}">
+      return `<a class="item" href="#/mes/${mes}/${esc(c.id)}">
         <span style="flex:1;min-width:0"><span class="t">${esc(c.nome)}</span> ${est ? `<span class="badge est">estourou</span>` : ''}${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}
         <br><span class="s">orçado ${x.orcado !== null ? money(x.orcado) : '—'} · realizado ${money(x.realizado)} · previsto ${money(x.previsto)}</span>
         <div class="bar ${cls}"><i style="width:${pct}%"></i></div></span>
-        <span class="r">${right}</span></button>`;
+        <span class="r">${right}</span></a>`;
     }).join('')}</div>${semOrc}`;
   };
   return `${banners()}
-    <div class="row" style="margin-bottom:14px"><a class="btn" href="#/mes/${addMonthKey(mes, -1)}" aria-label="Mês anterior">‹</a><h1>${cap(monthName(mes))}</h1><a class="btn" href="#/mes/${addMonthKey(mes, 1)}" aria-label="Mês seguinte">›</a></div>
-    <div class="grid2">
-      <div class="card"><div class="label">Entradas</div><div class="big num">${money(res.entradas.realizado)}</div><div class="small muted">previsto ${money(res.entradas.previsto)} · orçado ${money(res.entradas.orcado)}</div></div>
-      <div class="card"><div class="label">Saídas</div><div class="big num">${money(res.saidas.realizado)}</div><div class="small muted">previsto ${money(res.saidas.previsto)} · orçado ${money(res.saidas.orcado)}</div></div>
-      <div class="card"><div class="label">Guardado</div><div class="big num">${money(res.guardado)}</div><div class="small muted">previsto ${money(res.guardadoPrevisto)} · orçado ${money(res.guardadoOrcado)}${res.guardado ? ` · ${Math.round(res.percGuardado * 100)}% das entradas` : ''}</div></div>
-      <div class="card"><div class="label">Disponível nas saídas</div><div class="big num ${res.dispSaidas < 0 ? 'neg' : ''}">${money(res.dispSaidas)}</div><div class="small muted">orçado − realizado − previsto</div></div>
-    </div>
-    <p class="small muted">Compras no cartão contam no mês da fatura. A sobra do orçado não passa para o mês seguinte. Toque numa categoria para mudar o orçado.</p>
+    <div class="row" style="margin-bottom:14px"><a class="btn" href="#/mes/${addMonthKey(mes, -1)}" data-swap aria-label="Mês anterior">‹</a><h1>${cap(monthName(mes))}</h1><a class="btn" href="#/mes/${addMonthKey(mes, 1)}" data-swap aria-label="Mês seguinte">›</a></div>
+    ${resumoCard(res, mes)}
+    <p class="small muted">Compras no cartão contam no mês da fatura. A sobra do orçado não passa para o mês seguinte. Toque numa categoria para ver os lançamentos dela.</p>
     ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}`;
+}
+
+// Resumo do mês: o que foi planejado, o que já aconteceu e o que ainda está previsto.
+function resumoCard(res, mes) {
+  const n = v => money(v).replace(/^R\$\s?/, '');
+  const row = (rot, o, r, p) => `<tr><th scope="row">${rot}</th><td class="num">${n(o)}</td><td class="num">${n(r)}</td><td class="num">${n(p)}</td></tr>`;
+  const sa = res.saidas;
+  return `<div class="card stack">
+    <div class="label">Resumo de ${monthName(mes, false)} (R$)</div>
+    <table class="resumo">
+      <thead><tr><th></th><th scope="col">Orçado</th><th scope="col">Realizado</th><th scope="col">Previsto</th></tr></thead>
+      <tbody>
+        ${row('Entradas', res.entradas.orcado, res.entradas.realizado, res.entradas.previsto)}
+        ${row('Saídas', sa.orcado, sa.realizado, sa.previsto)}
+        ${row('Guardado', res.guardadoOrcado, res.guardado, res.guardadoPrevisto)}
+      </tbody>
+    </table>
+    <div class="calc">
+      <div class="kv"><span>Sobra planejada <span class="muted small">(entradas − saídas − guardado, pelo orçado)</span></span><span class="num ${res.sobraOrcada < 0 ? 'neg' : ''}">${money(res.sobraOrcada)}</span></div>
+      <div class="kv"><span>Sobra projetada <span class="muted small">(considerando o que já passou do orçado)</span></span><span class="num ${res.sobraProjetada < 0 ? 'neg' : ''}">${money(res.sobraProjetada)}</span></div>
+      <div class="kv"><span>Ainda cabe gastar nas saídas</span><span class="num">${money(sa.livre)}</span></div>
+      ${sa.estouradas ? `<div class="kv"><span class="neg">${sa.estouradas} ${sa.estouradas === 1 ? 'categoria passou' : 'categorias passaram'} do orçado</span><span class="num neg">${money(sa.acima)}</span></div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ---------- Categoria no mês ----------
+function scrMesCategoria(mes, catId) {
+  const c = M.categoria(S, catId);
+  if (!c) return `<div class="top">${backBtn(`#/mes/${mes}`)}</div><p>Categoria não encontrada.</p>`;
+  const x = M.catMes(S, catId, mes);
+  const entrada = c.tipo === 'entrada';
+  const usado = round2(x.realizado + x.previsto);
+  const pct = x.orcado ? Math.min(100, Math.round((usado / x.orcado) * 100)) : (usado ? 100 : 0);
+  const est = !entrada && x.orcado !== null && x.disponivel < 0;
+  const cls = est ? 'over' : (!entrada && x.uso >= 0.8 ? 'near' : '');
+  const ls = S.get('Lancamentos').filter(l => l.categoria_id === catId && l.mes_orcamento === mes)
+    .sort((a, b) => a.data.localeCompare(b.data));
+  const pend = ls.filter(l => l.situacao === 'previsto' && l.data <= hoje() && !(l.forma === 'cartao' && l.recorrencia_id));
+  const prev = ls.filter(l => l.situacao === 'previsto' && !pend.includes(l));
+  const conf = ls.filter(l => l.situacao === 'confirmado').reverse();
+  const bloco = (t, arr) => arr.length ? `<div class="section-title">${t} (${arr.length})</div><div class="list">${arr.map(lancItem).join('')}</div>` : '';
+  return `${banners()}
+    <div class="top">${backBtn(`#/mes/${mes}`)}<button class="btn" data-act="orcado" data-cat="${esc(catId)}" data-mes="${mes}">${x.orcado === null ? 'Definir orçado' : 'Alterar orçado'}</button></div>
+    <div class="row" style="margin-bottom:12px"><a class="btn" href="#/mes/${addMonthKey(mes, -1)}/${esc(catId)}" data-swap aria-label="Mês anterior">‹</a>
+      <div style="text-align:center"><h1>${esc(c.nome)}</h1><div class="small muted">${cap(monthName(mes))}</div></div>
+      <a class="btn" href="#/mes/${addMonthKey(mes, 1)}/${esc(catId)}" data-swap aria-label="Mês seguinte">›</a></div>
+    <div class="card stack">
+      <div class="row"><div><div class="label">${entrada ? 'Falta receber' : est ? 'Acima do orçado' : 'Disponível'}</div>
+        <div class="big num ${est ? 'neg' : ''}">${entrada ? money(Math.max(0, (x.orcado || 0) - x.realizado)) : x.orcado === null ? '—' : money(Math.abs(x.disponivel))}</div></div>
+        ${est ? '<span class="badge est">estourou</span>' : ''}${c.repasse ? '<span class="badge prev">repasse</span>' : ''}</div>
+      ${x.orcado !== null ? `<div class="bar ${cls}"><i style="width:${pct}%"></i></div>` : ''}
+      <div class="grid3">
+        <div><div class="small muted">Orçado</div><div class="num">${x.orcado !== null ? money(x.orcado) : '—'}</div></div>
+        <div><div class="small muted">${entrada ? 'Recebido' : 'Realizado'}</div><div class="num">${money(x.realizado)}</div></div>
+        <div><div class="small muted">Previsto</div><div class="num">${money(x.previsto)}</div></div>
+      </div>
+      ${x.orcado === null && !entrada ? '<div class="small muted">Sem orçado neste mês. Toque em "Definir orçado".</div>' : ''}
+    </div>
+    ${bloco('Pendentes', pend)}${bloco('Previstos', prev)}${bloco(entrada ? 'Recebidos' : 'Realizados', conf)}
+    ${!ls.length ? `<p class="muted" style="margin-top:16px">Nenhum lançamento nesta categoria em ${monthName(mes, false)}.</p>` : ''}`;
 }
 
 // ---------- Mais ----------
@@ -429,7 +523,7 @@ function cardForm(c, formName) {
 function scrCartoes() {
   const cs = M.cartoes(S, true);
   return `${banners()}
-    <div class="top"><a class="back" href="#/mais">‹ Mais</a></div>
+    <div class="top">${backBtn('#/mais')}</div>
     <h1>Cartões e faturas</h1>
     <div class="stack" style="margin-top:12px">
       ${cs.length ? `<div class="list">${cs.map(c => {
@@ -442,10 +536,10 @@ function scrCartoes() {
 
 function scrCartao(id) {
   const c = M.cartao(S, id);
-  if (!c) return '<p>Cartão não encontrado.</p><a href="#/cartoes">Voltar</a>';
+  if (!c) return `<div class="top">${backBtn('#/cartoes')}</div><p>Cartão não encontrado.</p>`;
   const fats = M.faturasDoCartao(S, id).reverse();
   return `${banners()}
-    <div class="top"><a class="back" href="#/cartoes">‹ Cartões</a></div>
+    <div class="top">${backBtn('#/cartoes')}</div>
     <h1>${esc(c.nome)}</h1>
     <div class="section-title">Faturas</div>
     ${fats.length ? `<div class="list">${fats.map(f => `<button class="item" data-act="fatura" data-id="${esc(f.id)}"><span><span class="t">${cap(monthName(f.mes))}</span> ${f.situacao === 'paga' ? '' : (f.data_vencimento <= hoje() && f.total > 0 ? '<span class="badge pend">pendente</span>' : '')}<br><span class="s">fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}${f.situacao === 'paga' ? ` · paga em ${fmtDate(f.data_pagamento)}` : ''}</span></span><span class="r num">${money(f.total)}</span></button>`).join('')}</div>` : '<p class="muted">Nenhuma compra neste cartão ainda.</p>'}
@@ -460,7 +554,7 @@ function scrCategorias() {
     return `<div class="section-title">${titulo}</div><div class="list">${cs.map(c => `<button class="item" data-act="categoria" data-id="${esc(c.id)}"><span><span class="t">${esc(c.nome)}</span>${c.arquivada ? ' <span class="badge envio">arquivada</span>' : ''}${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}<br><span class="s">${esc(S.get('Palavras').filter(p => p.categoria_id === c.id).map(p => p.palavra).slice(0, 6).join(', ') || 'sem palavras')}</span></span><span>›</span></button>`).join('') || '<div class="item muted">Nenhuma</div>'}</div>`;
   };
   return `${banners()}
-    <div class="top"><a class="back" href="#/mais">‹ Mais</a><button class="btn primary" data-act="categoria" data-id="">Nova categoria</button></div>
+    <div class="top">${backBtn('#/mais')}<button class="btn primary" data-act="categoria" data-id="">Nova categoria</button></div>
     <h1>Categorias</h1>
     <p class="small muted">As palavras são o que o campo de lançamento usa para sugerir a categoria. Elas também são aprendidas a cada lançamento.</p>
     ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}`;
@@ -471,7 +565,7 @@ function scrSaldo() {
   const saldo = M.saldoAtual(S);
   const pend = M.pendentes(S);
   return `${banners()}
-    <div class="top"><a class="back" href="#/inicio">‹ Início</a></div>
+    <div class="top">${backBtn('#/inicio')}</div>
     <h1>Ajustar saldo</h1>
     <form class="stack" data-form="ajuste" style="margin-top:12px">
       <div class="card"><div class="label">Saldo atual no app</div><div class="big num">${money(saldo)}</div></div>
@@ -716,7 +810,6 @@ function orcadoPanel(m) {
       <button class="btn primary" name="modo" value="so">Salvar só em ${monthName(m.mes)}</button>
       <button class="btn" name="modo" value="repetir">Salvar e repetir nos próximos 12 meses</button>
       <p class="small muted">Repetir não muda meses que já tinham um valor ajustado à mão.</p>
-      <a class="btn link" href="#/lancamentos?mes=${m.mes}&cat=${esc(m.cat)}" data-act="close-nav">Ver lançamentos desta categoria</a>
     </form>`;
 }
 
@@ -836,8 +929,12 @@ const actions = {
       ui.msg = e instanceof AuthError ? 'O login não foi concluído. Se a janela do Google não abriu, permita pop-ups para este site.' : `Erro: ${e.message}`;
     } finally { ui.busy = false; ui.forceRender = true; render(); }
   },
+  back(el) {
+    if (navStack.length > 1) history.back();
+    else { navStack = []; go(el.dataset.href || '#/inicio'); }
+  },
   async reconnect() {
-    try { await B.signIn(S.user?.email); S.status.authNeeded = false; S.status.error = null; await sync(); }
+    try { await B.signIn(S.user?.email); auth.falhou = false; S.status.authNeeded = false; S.status.error = null; await sync(); }
     catch (e) { toast('A conexão não foi concluída. Tente de novo.'); }
     ui.forceRender = true; render();
   },
@@ -887,6 +984,8 @@ const actions = {
 };
 
 document.addEventListener('click', ev => {
+  const sw = ev.target.closest('a[data-swap]');
+  if (sw) { ev.preventDefault(); swap(sw.getAttribute('href')); return; }
   const el = ev.target.closest('[data-act]');
   if (!el) return;
   const fn = actions[el.dataset.act];
@@ -1023,9 +1122,30 @@ document.addEventListener('submit', ev => {
   fn(new FormData(form), form, ev.submitter);
 });
 
+// ---------- Conexão com o Google ----------
+// O Google só entrega uma conexão nova a partir de um toque na tela. Então, quando ela venceu
+// (ou está para vencer), o app renova sozinho no primeiro toque, sem pedir nada. Até lá, mostra
+// os dados guardados no aparelho. O aviso com "Reconectar" só aparece se a renovação falhar.
+const auth = { emCurso: false, falhou: false };
+async function renovarConexao() {
+  if (DEMO || !S.user || !S.spreadsheet || auth.emCurso || auth.falhou || !B.tokenClient) return;
+  if (B.hasToken() && B.minutesLeft() > 10) return;
+  auth.emCurso = true;
+  try {
+    await B.signIn(S.user.email, { silent: true });
+    S.status.authNeeded = false; S.status.error = null;
+    await sync();
+  } catch (e) {
+    auth.falhou = !B.hasToken();
+    if (auth.falhou) S.status.authNeeded = true;
+  } finally { auth.emCurso = false; ui.forceRender = true; render(); }
+}
+document.addEventListener('pointerup', () => renovarConexao(), true);
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter') renovarConexao(); }, true);
+
 // ---------- Início do app ----------
 S.subscribe(() => render());
-window.addEventListener('hashchange', () => { ui.forceRender = true; closeModal(); render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { trackNav(); ui.forceRender = true; closeModal(); render(); window.scrollTo(0, 0); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && S.spreadsheet) {
     const last = S.s.lastSync ? Date.parse(S.s.lastSync) : 0;

@@ -17,6 +17,7 @@ export class MockBackend {
   async init() {}
   hasToken() { return this.signed; }
   async signIn() { this.signed = true; localStorage.setItem('af_mock_signed', '1'); }
+  minutesLeft() { return this.signed ? 60 : 0; }
   signOut() { this.signed = false; localStorage.removeItem('af_mock_signed'); }
   async getUser() { return { email: 'demo@exemplo.com', name: 'Demo' }; }
 
