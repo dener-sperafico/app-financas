@@ -1,13 +1,13 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=5';
-import { MockBackend } from './mock.js?v=5';
-import { Store } from './store.js?v=5';
-import { objToRow } from './schema.js?v=5';
-import * as M from './model.js?v=5';
-import { interpretar, previstoParecido } from './parser.js?v=5';
+import { GoogleBackend, AuthError } from './google.js?v=6';
+import { MockBackend } from './mock.js?v=6';
+import { Store } from './store.js?v=6';
+import { objToRow } from './schema.js?v=6';
+import * as M from './model.js?v=6';
+import { interpretar, previstoParecido } from './parser.js?v=6';
 import {
   todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=5';
+} from './util.js?v=6';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1138,9 +1138,13 @@ async function renovarConexao() {
   } catch (e) {
     auth.falhou = !B.hasToken();
     if (auth.falhou) S.status.authNeeded = true;
-  } finally { auth.emCurso = false; ui.forceRender = true; render(); }
+  } finally {
+    auth.emCurso = false;
+    // Redesenha depois que o toque terminou, para não engolir o clique que disparou a renovação.
+    setTimeout(() => { ui.forceRender = true; render(); }, 0);
+  }
 }
-document.addEventListener('pointerup', () => renovarConexao(), true);
+document.addEventListener('click', () => { renovarConexao(); }, true);
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter') renovarConexao(); }, true);
 
 // ---------- Início do app ----------
@@ -1168,7 +1172,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=5', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=6', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
