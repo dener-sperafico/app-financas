@@ -1,7 +1,7 @@
 // Estado local, cache offline e sincronização com a planilha (fila de envio).
-import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=8';
-import { nowStamp } from './util.js?v=8';
-import { AuthError } from './google.js?v=8';
+import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=9';
+import { nowStamp } from './util.js?v=9';
+import { AuthError } from './google.js?v=9';
 
 export const TOMBSTONE = '#excluido';
 const BATCH = 200;
@@ -165,6 +165,9 @@ export class Store {
     const id = this.s.spreadsheet.id;
     try {
       while (this.s.queue.length) {
+        // Alterações em linhas que já existem vão juntas, num único envio (a planilha limita gravações por minuto).
+        const lote = this._loteAtualizacoes();
+        if (lote.length > 1) { await this._enviarLote(id, lote); continue; }
         const q = this.s.queue[0];
         const rowsOf = this.s.rows[q.sheet];
         if (q.op === 'put') {
@@ -206,6 +209,12 @@ export class Store {
     } catch (e) {
       if (e instanceof AuthError) this.status.authNeeded = true;
       else if (e instanceof TypeError) this.status.online = false;
+      else if (e.status === 429) {
+        // Limite de gravações por minuto do Google: espera e tenta de novo sozinho.
+        this.status.error = 'o Google pediu uma pausa nas gravações. O app tenta de novo em 1 minuto';
+        clearTimeout(this._retry);
+        this._retry = setTimeout(() => { this.status.error = null; this.flush(); }, 65000);
+      }
       else this.status.error = e.message || String(e);
       console.warn('Sincronização interrompida', e);
     } finally {
@@ -216,6 +225,46 @@ export class Store {
   }
 
   // Duas pessoas editando o mesmo lançamento: vale a última gravação, com aviso (N02).
+  _loteAtualizacoes() {
+    const lote = [], vistos = new Set();
+    for (const x of this.s.queue) {
+      if (lote.length >= 100) break;
+      const n = this.s.rows[x.sheet][x.key];
+      const k = `${x.sheet}|${x.key}`;
+      if (!n || vistos.has(k)) break;
+      vistos.add(k);
+      lote.push({ q: x, n });
+    }
+    return lote;
+  }
+
+  async _enviarLote(id, lote) {
+    const conferir = lote.filter(({ q }) => q.op === 'put' && q.sheet === 'Lancamentos' && q.base);
+    if (conferir.length && this.backend.readRows) {
+      try {
+        const remotos = await this.backend.readRows(id, conferir.map(({ q, n }) => ({ sheet: q.sheet, n })));
+        conferir.forEach(({ q }, i) => this._avisarConflito(q, rowToObj(q.sheet, remotos[i] || [])));
+      } catch { /* aviso é opcional */ }
+    }
+    await this.backend.updateRows(id, lote.map(({ q, n }) => ({
+      sheet: q.sheet, n,
+      row: q.op === 'put' ? objToRow(q.sheet, q.obj) : SHEETS[q.sheet].map((_, i) => (i === 0 ? TOMBSTONE : '')),
+    })));
+    lote.forEach(({ q }) => { if (q.op !== 'put') delete this.s.rows[q.sheet][q.key]; });
+    this.s.queue.splice(0, lote.length);
+    this.save();
+  }
+
+  _avisarConflito(q, remote) {
+    const me = this.s.user?.email;
+    if (remote.id === q.key && remote.alterado_em && q.base && remote.alterado_em !== q.base && remote.alterado_por !== me) {
+      this.notices.push({
+        id: Date.now() + Math.random(),
+        text: `${remote.alterado_por.split('@')[0]} tinha alterado "${remote.descricao}" ao mesmo tempo. Ficou a sua versão; a outra tinha valor ${remote.valor}.`,
+      });
+    }
+  }
+
   async _checkConflict(q, n) {
     try {
       const remote = rowToObj(q.sheet, await this.backend.readRow(this.s.spreadsheet.id, q.sheet, n));

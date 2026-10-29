@@ -1,6 +1,6 @@
 // Comunicação direta com o Google: login (Google Identity Services), Sheets, Drive e Picker.
-import { CONFIG } from './config.js?v=8';
-import { SHEETS } from './schema.js?v=8';
+import { CONFIG } from './config.js?v=9';
+import { SHEETS } from './schema.js?v=9';
 
 const TOKEN_KEY = 'af_token';
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -216,6 +216,20 @@ export class GoogleBackend {
     });
     const m = /![A-Z]+(\d+)/.exec(r.updates.updatedRange);
     return m ? Number(m[1]) : null;
+  }
+
+  // Várias linhas de uma vez: [{ sheet, n, row }]
+  async updateRows(id, itens) {
+    await this.api(`${SHEETS_API}/${id}/values:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({ valueInputOption: 'RAW', data: itens.map(x => ({ range: `${x.sheet}!A${x.n}`, values: [x.row] })) }),
+    });
+  }
+
+  async readRows(id, itens) {
+    const ranges = itens.map(x => `ranges=${encodeURIComponent(`${x.sheet}!A${x.n}:Z${x.n}`)}`).join('&');
+    const r = await this.api(`${SHEETS_API}/${id}/values:batchGet?${ranges}&valueRenderOption=UNFORMATTED_VALUE`);
+    return (r.valueRanges || []).map(v => (v.values && v.values[0]) || []);
   }
 
   async updateRow(id, sheet, rowNumber, row) {

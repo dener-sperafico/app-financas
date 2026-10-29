@@ -1,6 +1,6 @@
 // Modo demonstração: imita o Google guardando a "planilha" no próprio navegador.
 // Abra o app com ?demo=1 para usar. Nada é enviado para o Google.
-import { SHEETS } from './schema.js?v=8';
+import { SHEETS } from './schema.js?v=9';
 
 const KEY = 'af_mock_db';
 
@@ -79,6 +79,8 @@ export class MockBackend {
     return start;
   }
 
+  async updateRows(id, itens) { for (const x of itens) await this.updateRow(id, x.sheet, x.n, x.row); }
+  async readRows(id, itens) { return Promise.all(itens.map(x => this.readRow(id, x.sheet, x.n))); }
   async updateRow(id, sheet, n, row) {
     await this._lag();
     const s = this._file(id).sheets[sheet];
