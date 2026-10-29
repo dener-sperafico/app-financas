@@ -400,3 +400,19 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .destaque .orc-linha .t { white-space: nowrap; font-size: var(--txt-apoio); }
 .destaque .orc-linha .num { font-size: var(--txt-apoio); }
 .card.stack { display: flex; flex-direction: column; }
+
+/* ---------- Tutorial do primeiro acesso ---------- */
+.tutorial { display: flex; flex-direction: column; gap: var(--esp-3); }
+.tutorial h2 { font-size: var(--txt-titulo-2); }
+.tutorial p { color: var(--cor-texto-2); }
+.tut-ic { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--cor-lavanda); color: var(--cor-violeta); }
+.tut-ic svg.ic { width: 28px; height: 28px; }
+.tutorial .exemplo { display: flex; flex-direction: column; gap: var(--esp-2); padding: var(--esp-3) var(--esp-4); border-radius: var(--raio-m); background: var(--cor-fundo); border: 1px solid var(--cor-borda); }
+.tutorial .frase-ex { display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--esp-4); border-radius: var(--raio-pilula); border: 1.5px solid var(--cor-borda-campo); background: var(--cor-superficie); width: max-content; max-width: 100%; }
+.tutorial .exemplo .chip { min-height: 32px; cursor: default; }
+.passos { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--esp-3); }
+.passos li { display: flex; gap: var(--esp-3); align-items: flex-start; color: var(--cor-texto); }
+.passos .n { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--cor-violeta); color: #fff; font-weight: 800; font-size: var(--txt-legenda); }
+.passos.simples li { display: list-item; margin-left: var(--esp-5); list-style: disc; }
+.passos svg.ic.mini { color: var(--cor-violeta); margin-right: 2px; }
+.modal .mh .steps { margin: 0; }

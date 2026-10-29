@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=13';
-import { MockBackend } from './mock.js?v=13';
-import { Store } from './store.js?v=13';
-import { objToRow } from './schema.js?v=13';
-import * as M from './model.js?v=13';
-import { interpretar, previstoParecido } from './parser.js?v=13';
-import { ic, icCategoria } from './icones.js?v=13';
+import { GoogleBackend, AuthError } from './google.js?v=15';
+import { MockBackend } from './mock.js?v=15';
+import { Store } from './store.js?v=15';
+import { objToRow } from './schema.js?v=15';
+import * as M from './model.js?v=15';
+import { interpretar, previstoParecido } from './parser.js?v=15';
+import { ic, icCategoria } from './icones.js?v=15';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=13';
+} from './util.js?v=15';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -68,6 +68,10 @@ function render() {
   if (ui.lastRoute !== routeKey) {
     $('#composer').innerHTML = hasComposer && !desk ? composer() : '';
     ui.lastRoute = routeKey;
+  }
+  if (r.name === 'inicio' && S.user && S.spreadsheet && !ui.modal && !tutorialVisto() && !ui.tutorialAberto) {
+    ui.tutorialAberto = true;
+    setTimeout(() => { if (!ui.modal) openModal({ type: 'tutorial', passo: 0 }); }, 300);
   }
   $('#toast').innerHTML = ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : '';
 }
@@ -607,6 +611,7 @@ function scrMais() {
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/setup/orcamento', 'calendar-range', 'Orçar o mês atual')}
         ${ir('#/setup/compartilhar', 'user-round', 'Usar junto com o cônjuge')}
+        <button class="item" data-act="tutorial">${ic('circle-help')}<span class="meio"><span class="t">Como usar o Oikon</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
         <button class="btn danger" data-act="logout">${ic('log-out')}Sair e limpar os dados deste aparelho</button>
@@ -748,6 +753,7 @@ function renderModal() {
   else if (m.type === 'categoria') html = categoriaPanel(m);
   else if (m.type === 'confirmar') html = confirmPanel(m);
   else if (m.type === 'composicao') html = composicaoPanel();
+  else if (m.type === 'tutorial') html = tutorialPanel(m);
   const novo = !el.firstChild;
   el.innerHTML = `<div class="modal-bg" data-act="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mh-t" ${novo ? '' : 'style="animation:none"'}>${html}</div></div>`;
   if (!novo) el.querySelector('.modal-bg').style.animation = 'none';
@@ -1152,6 +1158,106 @@ function categoriaPanel(m) {
 }
 
 
+// ---------- Tutorial do primeiro acesso ----------
+// Aparece uma vez por aparelho, depois de entrar e conectar a planilha. Pode ser revisto em Mais › Como usar o Oikon.
+const TUTORIAL_KEY = 'af_tutorial';
+const tutorialVisto = () => { try { return localStorage.getItem(TUTORIAL_KEY) === '1'; } catch { return true; } };
+const marcarTutorial = () => { try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch { /* ignora */ } };
+const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function plataforma() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'computador';
+}
+// Android/Chrome avisa quando o app pode ser instalado; guardamos o aviso para o botão "Instalar".
+window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); ui.instalar = ev; if (ui.modal?.type === 'tutorial') renderModal(); });
+window.addEventListener('appinstalled', () => { ui.instalar = null; if (ui.modal?.type === 'tutorial') renderModal(); });
+
+function passoInstalar() {
+  const p = plataforma();
+  const passo = (n, html) => `<li><span class="n">${n}</span><span>${html}</span></li>`;
+  if (instalado()) return { icone: 'smartphone', titulo: 'O Oikon já está na sua tela inicial', texto: '<p>Você está usando o Oikon pelo ícone, como um app. É só abrir por ele daqui em diante.</p>' };
+  if (p === 'ios') {
+    return {
+      icone: 'smartphone', titulo: 'Coloque o Oikon na tela inicial',
+      texto: `<p>Assim ele abre como um app, sem barra do navegador. No Safari:</p>
+        <ol class="passos">
+          ${passo(1, `Toque nos três pontos ${ic('ellipsis', 'mini')}ao lado do endereço e depois em ${ic('share', 'mini')}<b>Compartilhar</b>. Em versões anteriores ao iOS 26, o ${ic('share', 'mini')}<b>Compartilhar</b> fica direto na barra de baixo.`)}
+          ${passo(2, `Role a lista e toque em ${ic('square-plus', 'mini')}<b>Adicionar à Tela de Início</b>.`)}
+          ${passo(3, 'Se aparecer a opção de abrir como app da web, deixe ligada. Toque em <b>Adicionar</b>.')}
+        </ol>
+        <p class="small muted">Na primeira vez que abrir pelo ícone, entre com o Google de novo: o iPhone guarda o app separado do Safari.</p>`,
+    };
+  }
+  if (p === 'android') {
+    return {
+      icone: 'smartphone', titulo: 'Coloque o Oikon na tela inicial',
+      texto: `<p>Assim ele abre como um app, sem barra do navegador.</p>
+        ${ui.instalar ? `<button class="btn primary block" data-act="instalar">${ic('download')}Instalar o Oikon</button><p class="small muted" style="margin-top:var(--esp-2)">Se preferir, o caminho manual é este:</p>` : ''}
+        <ol class="passos">
+          ${passo(1, `No Chrome, toque nos três pontos ${ic('ellipsis-vertical', 'mini')}no canto de cima.`)}
+          ${passo(2, `Toque em ${ic('download', 'mini')}<b>Instalar app</b>. Se não aparecer, use <b>Adicionar à tela inicial</b>.`)}
+          ${passo(3, 'Confirme em <b>Instalar</b>. O ícone do Oikon aparece com os seus apps.')}
+        </ol>`,
+    };
+  }
+  return {
+    icone: 'monitor', titulo: 'No celular, use pela tela inicial',
+    texto: `<p>No computador, é só usar pelo navegador. Para lançar rápido no dia a dia, abra o Oikon no celular e coloque na tela inicial:</p>
+      <ul class="passos simples">
+        <li><b>iPhone (Safari):</b> ⋯ › Compartilhar › Adicionar à Tela de Início.</li>
+        <li><b>Android (Chrome):</b> ⋮ › Instalar app.</li>
+      </ul>
+      ${ui.instalar ? `<button class="btn block" data-act="instalar">${ic('download')}Instalar também neste computador</button>` : ''}`,
+  };
+}
+
+function passosTutorial() {
+  return [
+    {
+      icone: 'arrow-right', titulo: 'Lance em uma frase',
+      texto: `<p>Escreva no campo de baixo do jeito que falaria:</p>
+        <div class="exemplo"><span class="frase-ex">mercado 150 pix</span><span class="chips"><span class="chip ed">R$ 150,00</span><span class="chip ed">Mercado</span><span class="chip ed">Pix</span><span class="chip ed">Hoje</span></span></div>
+        <p>O Oikon entende valor, categoria, pagamento e data. Você confere antes de salvar e ele aprende com cada correção. Outros exemplos: <b>gasolina 200 nubank</b>, <b>salário 5000</b>, <b>tênis 600 nubank 3x</b>.</p>`,
+    },
+    {
+      icone: 'calendar-range', titulo: 'Quanto deve sobrar',
+      texto: `<p>O número grande da tela inicial é <b>quanto deve sobrar na conta no fim do mês</b>. Ele já conta o que está previsto, as faturas e o que ainda pode ser gasto do orçado.</p>
+        <p>Toque nele para ver a conta inteira. O <b>Saldo na conta</b>, logo abaixo, mostra só o que já aconteceu.</p>`,
+    },
+    {
+      icone: 'check', titulo: 'Confirme o que já aconteceu',
+      texto: `<p>Contas previstas, como luz ou aluguel, aparecem em <b>Para confirmar</b> quando a data chega. Toque em <b>Confirmar</b> se foi como esperado, ou abra para mudar valor e data.</p>
+        <p>Assinaturas e parcelas no cartão se confirmam sozinhas quando a fatura fecha.</p>`,
+    },
+    {
+      icone: 'credit-card', titulo: 'Orçado e cartão',
+      texto: `<p>Em <b>Mês</b>, cada categoria mostra o orçado, o que já foi gasto e o que ainda está previsto.</p>
+        <p>Compra no cartão conta no mês da fatura. A fatura mostra o que já foi lançado e uma estimativa pelo orçado que ainda não foi gasto.</p>`,
+    },
+    passoInstalar(),
+  ];
+}
+
+function tutorialPanel(m) {
+  const passos = passosTutorial();
+  const i = Math.min(m.passo || 0, passos.length - 1);
+  const p = passos[i];
+  const ultimo = i === passos.length - 1;
+  return `<div class="mh"><div class="steps" role="img" aria-label="Passo ${i + 1} de ${passos.length}">${passos.map((_, k) => `<i class="${k < i ? 'feito' : k === i ? 'atual' : ''}"></i>`).join('')}</div>
+      ${ultimo ? `<button class="x" data-act="tutorial-fim" aria-label="Fechar">${ic('x')}</button>` : '<button class="btn link" data-act="tutorial-fim">Pular</button>'}</div>
+    <div class="tutorial">
+      <span class="tut-ic">${ic(p.icone)}</span>
+      <h2 id="mh-t">${p.titulo}</h2>
+      <div class="stack">${p.texto}</div>
+    </div>
+    <div class="btns" style="margin-top:var(--esp-6)">
+      ${i > 0 ? `<button class="btn" data-act="tutorial-passo" data-passo="${i - 1}">${ic('chevron-left')}Voltar</button>` : ''}
+      ${ultimo ? `<button class="btn primary" data-act="tutorial-fim" data-foco>Começar a usar</button>` : `<button class="btn primary" data-act="tutorial-passo" data-passo="${i + 1}" data-foco>Próximo${ic('arrow-right')}</button>`}
+    </div>`;
+}
+
 // ---------- Ações ----------
 function novoDraft(texto) {
   const r = interpretar(S, texto);
@@ -1265,6 +1371,10 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
+  tutorial() { openModal({ type: 'tutorial', passo: 0 }); },
+  'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
+  'tutorial-fim'() { marcarTutorial(); closeModal(); },
+  async instalar() { const ev = ui.instalar; if (!ev) return; ev.prompt(); try { await ev.userChoice; } catch { /* ignora */ } ui.instalar = null; renderModal(); },
   'focar-campo'() { const i = $('#cmp'); if (i) i.focus(); },
   editar(el) { editarLanc(el.dataset.id); },
   excluir(el) { openModal({ type: 'excluir', id: el.dataset.id }); },
@@ -1280,7 +1390,7 @@ const actions = {
   categoria(el) { openModal({ type: 'categoria', id: el.dataset.id }); },
   close() { closeModal(); },
   'close-nav'() { closeModal(); },
-  'modal-bg'(el, ev) { if (ev.target === el) closeModal(); },
+  'modal-bg'(el, ev) { if (ev.target === el) { if (ui.modal?.type === 'tutorial') marcarTutorial(); closeModal(); } },
   logout() {
     const q = S.queue.length;
     openModal({
@@ -1317,7 +1427,7 @@ document.addEventListener('input', ev => {
 
 // Teclado: Esc fecha o painel; "/" ou "n" leva ao campo de lançamento (8.2, 8.12).
 document.addEventListener('keydown', ev => {
-  if (ev.key === 'Escape' && ui.modal) { ev.preventDefault(); closeModal(); return; }
+  if (ev.key === 'Escape' && ui.modal) { ev.preventDefault(); if (ui.modal.type === 'tutorial') marcarTutorial(); closeModal(); return; }
   const t = ev.target;
   const digitando = t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
   if (!digitando && !ui.modal && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === '/' || ev.key === 'n' || ev.key === 'N')) {
@@ -1500,7 +1610,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=13', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=15', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
