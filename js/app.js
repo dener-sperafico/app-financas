@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=24';
-import { MockBackend } from './mock.js?v=24';
-import { Store } from './store.js?v=24';
-import { objToRow } from './schema.js?v=24';
-import * as M from './model.js?v=24';
-import { interpretar, previstoParecido } from './parser.js?v=24';
-import { ic, icCategoria } from './icones.js?v=24';
+import { GoogleBackend, AuthError } from './google.js?v=25';
+import { MockBackend } from './mock.js?v=25';
+import { Store } from './store.js?v=25';
+import { objToRow } from './schema.js?v=25';
+import * as M from './model.js?v=25';
+import { interpretar, previstoParecido } from './parser.js?v=25';
+import { ic, icCategoria } from './icones.js?v=25';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=24';
+} from './util.js?v=25';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -272,7 +272,7 @@ function orcamentoInputs(mes) {
     if (!cs.length) return '';
     return `<div class="section-title">${titulo}</div><div class="card stack">${cs.map(c => {
       const v = M.orcado(S, c.id, mes);
-      return `<label class="field"><span>${esc(c.nome)}${c.repasse ? ' · repasse' : ''}</span><input name="o_${esc(c.id)}" inputmode="decimal" placeholder="—" value="${v !== null ? esc(String(v).replace('.', ',')) : ''}"></label>`;
+      return `<label class="field"><span>${esc(c.nome)}</span><input name="o_${esc(c.id)}" inputmode="decimal" placeholder="—" value="${v !== null ? esc(String(v).replace('.', ',')) : ''}"></label>`;
     }).join('')}</div>`;
   };
   return grupo('saida', 'Saídas') + grupo('investimento', 'Investimentos') + grupo('entrada', 'Entradas');
@@ -397,7 +397,7 @@ function linhaCategoria(x, mes) {
     : x.orcado === null ? 'Sem orçado neste mês'
     : est ? `<span class="neg">${money(-x.disponivel)} acima</span>` : `Disponível: ${money(x.disponivel)}`;
   return `<a class="item" href="#/mes/${mes}/${esc(c.id)}">${icCategoria(c)}
-    <span class="meio"><span class="orc-linha"><span class="t">${esc(c.nome)}${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}</span><span class="num">${money(usado)}${x.orcado !== null ? ` de ${money(x.orcado)}` : ''}</span></span>
+    <span class="meio"><span class="orc-linha"><span class="t">${esc(c.nome)}</span><span class="num">${money(usado)}${x.orcado !== null ? ` de ${money(x.orcado)}` : ''}</span></span>
     ${x.orcado !== null || usado ? barra(x.realizado, x.previsto, x.orcado) : ''}
     <span class="s">${rodape}</span></span></a>`;
 }
@@ -574,7 +574,7 @@ function scrMesCategoria(mes, catId) {
   const valor = entrada ? money(Math.max(0, (x.orcado || 0) - x.realizado)) : x.orcado === null ? money(x.realizado + x.previsto) : money(Math.abs(x.disponivel));
   return `${banners()}
     <div class="top">${backBtn(`#/mes/${mes}`)}<button class="btn" data-act="orcado" data-cat="${esc(catId)}" data-mes="${mes}">${ic('pencil')}${x.orcado === null ? 'Definir orçado' : 'Alterar orçado'}</button></div>
-    <div class="row" style="justify-content:flex-start;margin-bottom:var(--esp-3)">${icCategoria(c)}<h1>${esc(c.nome)}</h1>${c.repasse ? '<span class="badge prev">repasse</span>' : ''}</div>
+    <div class="row" style="justify-content:flex-start;margin-bottom:var(--esp-3)">${icCategoria(c)}<h1>${esc(c.nome)}</h1></div>
     ${seletorMes(mes, m => `#/mes/${m}/${esc(catId)}`)}
     <div class="card stack">
       <div class="row"><div><div class="label">${rotulo}</div><div class="num ${est ? 'neg' : ''}" style="font-size:var(--txt-numero-g);line-height:1.1">${valor}</div></div>
@@ -771,7 +771,7 @@ function scrCategorias() {
   const grupo = (tipo, titulo) => {
     const cs = M.categorias(S, { tipo, todas: true }).filter(c => !c.sistema);
     return `<h2 class="section-title">${titulo}</h2><div class="list">${cs.map(c => `<button class="item" data-act="categoria" data-id="${esc(c.id)}">${icCategoria(c)}
-      <span class="meio"><span class="t">${esc(c.nome)} <span class="badge prev">${TIPO[c.tipo]}</span>${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}${c.arquivada ? ' <span class="badge envio">arquivada</span>' : ''}</span>
+      <span class="meio"><span class="t">${esc(c.nome)} <span class="badge prev">${TIPO[c.tipo]}</span>${c.arquivada ? ' <span class="badge envio">arquivada</span>' : ''}</span>
       <span class="s">${formaPrevistaNome(c) ? `pago em ${esc(formaPrevistaNome(c))} · ` : ''}${esc(S.get('Palavras').filter(p => p.categoria_id === c.id).map(p => p.palavra).slice(0, 6).join(', ') || 'sem palavras')}</span></span>${ic('chevron-right')}</button>`).join('') || '<p class="apoio">Nenhuma.</p>'}</div>`;
   };
   return `${banners()}
@@ -1240,8 +1240,6 @@ function categoriaPanel(m) {
       <input type="hidden" name="id" value="${esc(c?.id || '')}">
       <label class="field"><span>Nome</span><input name="nome" required value="${esc(c?.nome || '')}" ${c ? '' : 'autofocus'}></label>
       <div class="seg" role="radiogroup" aria-label="Tipo">${[['saida', 'Saída'], ['entrada', 'Entrada'], ['investimento', 'Investimento']].map(([v, l]) => `<label><input type="radio" name="tipo" value="${v}" ${(c?.tipo || 'saida') === v ? 'checked' : ''}>${l}</label>`).join('')}</div>
-      <label class="check"><input type="checkbox" name="repasse" ${c?.repasse ? 'checked' : ''}> O dinheiro vai para a conta individual de alguém (repasse, como mesada)</label>
-      <label class="field"><span>Dia da transferência (só para repasse)</span><input name="dia" type="number" min="1" max="31" value="${c?.dia_transferencia ?? 5}"></label>
       ${(c?.tipo || 'saida') !== 'entrada' ? `<label class="field"><span>Forma de pagamento prevista</span><select name="forma_prevista">
         <option value="">Sem previsão</option>
         ${M.cartoes(S).map(k => `<option value="cartao:${esc(k.id)}" ${c?.forma_prevista === `cartao:${k.id}` ? 'selected' : ''}>Cartão · ${esc(k.nome)}</option>`).join('')}
@@ -1661,7 +1659,7 @@ const forms = {
     const cats = M.categorias(S, { todas: true });
     S.upsert('Categorias', {
       ...(prev || {}), id: novoId, nome, tipo: String(fd.get('tipo') || 'saida'),
-      repasse: fd.get('repasse') === 'on', dia_transferencia: fd.get('repasse') === 'on' ? Number(fd.get('dia')) || 5 : null,
+      repasse: false, dia_transferencia: null, // repasse foi retirado em 29/10: mesada é uma categoria comum
       sistema: false, arquivada: arquivar, ordem: prev?.ordem ?? cats.length + 1,
       forma_prevista: String(fd.get('forma_prevista') ?? prev?.forma_prevista ?? ''),
     });
@@ -1771,7 +1769,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=24', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=25', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
