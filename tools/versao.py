@@ -12,7 +12,7 @@ atual = int(re.search(r"const VERSION = 'af-v(\d+)'", txt).group(1))
 v = atual + 1
 for f in list((raiz / 'js').glob('*.js')) + [raiz / 'index.html', sw]:
     s = f.read_text()
-    s = re.sub(r"(['\"](?:\./|\./js/|js/)[a-z]+\.js)(\?v=\d+)?(['\"])", rf"\1?v={v}\3", s)
+    s = re.sub(r"(['\"](?:\./|\./js/|js/|css/|\./css/)[a-z]+\.(?:js|css))(\?v=\d+)?(['\"])", rf"\1?v={v}\3", s)
     s = re.sub(r"const VERSION = 'af-v\d+'", f"const VERSION = 'af-v{v}'", s)
     f.write_text(s)
 print('versão', v)

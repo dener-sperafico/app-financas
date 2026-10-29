@@ -72,7 +72,16 @@ export function daysBetween(a, b) {
 }
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-export const money = v => BRL.format(Number(v) || 0);
+const BRL_INTEIRO = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+// Único lugar que formata dinheiro. Negativo leva o sinal de menos (U+2212) antes do R$: −R$ 320,00.
+// inteiro: só reais, arredondando para baixo (número de destaque). sinal: mostra + nos positivos.
+export function formatarReais(valor, { inteiro = false, sinal = false } = {}) {
+  const v = Number(valor) || 0;
+  const abs = Math.abs(v);
+  const txt = inteiro ? BRL_INTEIRO.format(Math.floor(abs + 1e-9)) : BRL.format(abs);
+  return (v < 0 && (inteiro ? Math.floor(abs + 1e-9) : abs) > 0 ? '−' : sinal && v > 0 ? '+' : '') + txt;
+}
+export const money = v => formatarReais(v);
 export const round2 = v => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 
 export function normalize(s) {

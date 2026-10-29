@@ -1,6 +1,6 @@
 // Modo demonstração: imita o Google guardando a "planilha" no próprio navegador.
 // Abra o app com ?demo=1 para usar. Nada é enviado para o Google.
-import { SHEETS } from './schema.js?v=10';
+import { SHEETS } from './schema.js?v=12';
 
 const KEY = 'af_mock_db';
 
@@ -26,7 +26,7 @@ export class MockBackend {
     const id = 'demo_' + Date.now().toString(36);
     const sheets = {};
     Object.entries(SHEETS).forEach(([n, cols]) => { sheets[n] = [cols.slice(), ...(seeds[n] || [])]; });
-    this.db.files[id] = { name: 'Finanças — App (demonstração)', sheets };
+    this.db.files[id] = { name: 'Oikon (demonstração)', sheets };
     this._save();
     return { id, name: this.db.files[id].name };
   }

@@ -1,6 +1,6 @@
-# App de finanças do casal
+# Oikon
 
-App web instalável (PWA) para lançar gastos pelo celular e acompanhar orçamento e saldo. Os dados ficam numa planilha Google no Drive de quem usa; o app não tem servidor próprio.
+O dinheiro da casa, claro e simples. App web instalável (PWA) para lançar gastos pelo celular e acompanhar orçamento e saldo. Os dados ficam numa planilha Google no Drive de quem usa; o app não tem servidor próprio.
 
 - **Usar:** abra o endereço publicado pelo GitHub Pages e entre com Google.
 - **Testar sem Google:** acrescente `?demo=1` ao endereço. Os dados ficam só naquele navegador.
@@ -9,7 +9,10 @@ App web instalável (PWA) para lançar gastos pelo celular e acompanhar orçamen
 
 | Arquivo | O que faz |
 | --- | --- |
-| `index.html`, `css/app.css` | Página e visual |
+| `index.html`, `css/app.css` | Página e visual (design system do Oikon: tokens no topo do CSS) |
+| `js/icones.js` | Ícones de linha (Lucide, licença ISC) |
+| `fonts/` | Mulish e Outfit (licença SIL OFL), hospedadas para funcionar sem internet |
+| `tools/versao.py` | Marca uma versão nova em todos os arquivos antes de publicar |
 | `js/app.js` | Telas e navegação |
 | `js/model.js` | Regras: saldo, faturas, orçamento, recorrências, fechamento do mês |
 | `js/parser.js` | Campo único de lançamento (interpretação sem IA) |

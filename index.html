@@ -3,25 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d5bd6">
-<meta name="description" content="Controle de finanças do casal, com os dados numa planilha Google sua.">
-<title>Finanças do casal</title>
+<meta name="theme-color" content="#FBFAFF">
+<meta name="description" content="Oikon: o dinheiro da casa, claro e simples. Seus dados ficam numa planilha no seu Google Drive.">
+<title>Oikon</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/oikon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Finanças">
-<link rel="stylesheet" href="css/app.css">
+<meta name="apple-mobile-web-app-title" content="Oikon">
+<link rel="preload" href="fonts/mulish-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/outfit-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css?v=12">
 </head>
 <body>
 <div id="app">
-  <main id="main" class="shell"><p class="muted">Carregando…</p></main>
+  <main id="main" class="shell"><div class="carregando" aria-label="Carregando"><i></i><i></i><i></i></div></main>
   <div id="composer"></div>
   <div id="nav"></div>
   <div id="modal"></div>
   <div id="toast" aria-live="polite"></div>
 </div>
 <noscript>Este app precisa de JavaScript.</noscript>
-<script type="module" src="js/app.js?v=10"></script>
+<script type="module" src="js/app.js?v=12"></script>
 </body>
 </html>

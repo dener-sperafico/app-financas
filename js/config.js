@@ -6,5 +6,5 @@ export const CONFIG = {
   APP_ID: '251928341897',
   SCOPES: 'https://www.googleapis.com/auth/drive.file',
   SCHEMA_VERSION: 1,
-  SPREADSHEET_TITLE: 'Finanças — App',
+  SPREADSHEET_TITLE: 'Oikon · finanças da casa',
 };
