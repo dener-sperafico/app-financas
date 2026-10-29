@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=12';
-import { MockBackend } from './mock.js?v=12';
-import { Store } from './store.js?v=12';
-import { objToRow } from './schema.js?v=12';
-import * as M from './model.js?v=12';
-import { interpretar, previstoParecido } from './parser.js?v=12';
-import { ic, icCategoria } from './icones.js?v=12';
+import { GoogleBackend, AuthError } from './google.js?v=13';
+import { MockBackend } from './mock.js?v=13';
+import { Store } from './store.js?v=13';
+import { objToRow } from './schema.js?v=13';
+import * as M from './model.js?v=13';
+import { interpretar, previstoParecido } from './parser.js?v=13';
+import { ic, icCategoria } from './icones.js?v=13';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=12';
+} from './util.js?v=13';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -339,8 +339,8 @@ function destaque(fd, res, mes) {
   if (fd.faturas) partes.push(`${fd.faturas === faturasAbertas().total ? 'a fatura' : 'as faturas'} de ${money(fd.faturas)}`);
   if (fd.pagar) partes.push(`${money(fd.pagar)} em contas previstas`);
   if (fd.reservado) partes.push(`os ${money(fd.reservado)} ainda orçados`);
-  const pesos = [['A fatura do cartão', fd.faturas], ['As contas previstas', fd.pagar], ['O orçado que ainda pode ser gasto', fd.reservado]].sort((a, b) => b[1] - a[1]);
-  const exp = neg ? `${pesos[0][0]} é o que mais pesa no mês.` : partes.length ? `Já conta ${partes.length > 1 ? partes.slice(0, -1).join(', ') + ' e ' + partes.at(-1) : partes[0]}.` : 'Conta o saldo de hoje e o que ainda está previsto.';
+  const pesos = [['A fatura do cartão é', fd.faturas], ['As contas previstas são', fd.pagar], ['O orçado que ainda pode ser gasto é', fd.reservado]].sort((a, b) => b[1] - a[1]);
+  const exp = neg ? `${pesos[0][0]} o que mais pesa no mês.` : partes.length ? `Já conta ${partes.length > 1 ? partes.slice(0, -1).join(', ') + ' e ' + partes.at(-1) : partes[0]}.` : 'Conta o saldo de hoje e o que ainda está previsto.';
   const sa = res.saidas;
   const usado = round2(sa.realizado + sa.previsto);
   return `<a class="destaque" href="#/mes" data-act="composicao">
@@ -1500,7 +1500,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=12', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=13', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
