@@ -1,13 +1,13 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=9';
-import { MockBackend } from './mock.js?v=9';
-import { Store } from './store.js?v=9';
-import { objToRow } from './schema.js?v=9';
-import * as M from './model.js?v=9';
-import { interpretar, previstoParecido } from './parser.js?v=9';
+import { GoogleBackend, AuthError } from './google.js?v=10';
+import { MockBackend } from './mock.js?v=10';
+import { Store } from './store.js?v=10';
+import { objToRow } from './schema.js?v=10';
+import * as M from './model.js?v=10';
+import { interpretar, previstoParecido } from './parser.js?v=10';
 import {
   todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=9';
+} from './util.js?v=10';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -538,12 +538,15 @@ function scrCartao(id) {
   const c = M.cartao(S, id);
   if (!c) return `<div class="top">${backBtn('#/cartoes')}</div><p>Cartão não encontrado.</p>`;
   const todas = M.faturasDoCartao(S, id);
-  // Próximas primeiro (da mais perto para a mais longe); pagas depois, da mais recente para a mais antiga.
-  const fats = [...todas.filter(f => f.situacao !== 'paga'), ...todas.filter(f => f.situacao === 'paga').reverse()];
+  // Ordem cronológica. Das pagas, mostra só as duas mais recentes; as anteriores ficam atrás de um link.
+  const pagas = todas.filter(f => f.situacao === 'paga');
+  const ocultas = ui.faturasAntigas === id ? [] : pagas.slice(0, Math.max(0, pagas.length - 2));
+  const fats = todas.filter(f => !ocultas.includes(f));
   return `${banners()}
     <div class="top">${backBtn('#/cartoes')}</div>
     <h1>${esc(c.nome)}</h1>
     <div class="section-title">Faturas</div>
+    ${ocultas.length ? `<button class="btn link small" data-act="faturas-antigas" data-id="${esc(id)}">Ver faturas anteriores (${ocultas.length})</button>` : ''}
     ${fats.length ? `<div class="list">${fats.map(f => `<button class="item" data-act="fatura" data-id="${esc(f.id)}"><span><span class="t">${cap(monthName(f.mes))}</span> ${f.situacao === 'paga' ? '' : (f.data_vencimento <= hoje() && f.total > 0 ? '<span class="badge pend">pendente</span>' : '')}<br><span class="s">fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}${f.situacao === 'paga' ? ` · paga em ${fmtDate(f.data_pagamento)}` : ''}</span></span><span class="r"><span class="num">${money(f.previsao)}</span>${f.estimativa ? `<br><span class="s">${money(f.total)} lançado</span>` : ''}</span></button>`).join('')}</div>` : '<p class="muted">Nenhuma compra neste cartão ainda.</p>'}
     ${M.categoriasDoCartao(S, id).length ? `<p class="small muted">Faturas abertas somam o que já foi lançado e o orçado ainda não gasto de: ${M.categoriasDoCartao(S, id).map(c => esc(c.nome)).join(', ')}.</p>` : ''}
     <div style="margin-top:16px">${cardForm(c, 'cartao')}</div>
@@ -992,6 +995,7 @@ const actions = {
   editar(el) { editarLanc(el.dataset.id); },
   excluir(el) { openModal({ type: 'excluir', id: el.dataset.id }); },
   fatura(el) { openModal({ type: 'fatura', id: el.dataset.id }); },
+  'faturas-antigas'(el) { ui.faturasAntigas = el.dataset.id; ui.forceRender = true; render(); },
   'pagar-fatura'(el) {
     const f = M.faturaInfoFromId(S, el.dataset.id);
     const total = M.faturaTotal(S, el.dataset.id);
@@ -1205,7 +1209,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=9', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=10', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
