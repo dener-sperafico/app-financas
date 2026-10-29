@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=25';
-import { MockBackend } from './mock.js?v=25';
-import { Store } from './store.js?v=25';
-import { objToRow } from './schema.js?v=25';
-import * as M from './model.js?v=25';
-import { interpretar, previstoParecido } from './parser.js?v=25';
-import { ic, icCategoria } from './icones.js?v=25';
+import { GoogleBackend, AuthError } from './google.js?v=26';
+import { MockBackend } from './mock.js?v=26';
+import { Store } from './store.js?v=26';
+import { objToRow } from './schema.js?v=26';
+import * as M from './model.js?v=26';
+import { interpretar, previstoParecido } from './parser.js?v=26';
+import { ic, icCategoria } from './icones.js?v=26';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=25';
+} from './util.js?v=26';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1432,6 +1432,16 @@ function handleError(e) {
   ui.forceRender = true; render();
 }
 
+// Se a planilha foi renomeada no Drive, o app passa a mostrar o nome novo (confere uma vez por abertura).
+async function atualizarNomePlanilha() {
+  if (ui.nomeConferido || !S.spreadsheet) return;
+  ui.nomeConferido = true;
+  try {
+    const info = await B.fileInfo(S.spreadsheet.id);
+    if (info?.name && info.name !== S.spreadsheet.name) { S.setSpreadsheet({ ...S.spreadsheet, name: info.name }); ui.forceRender = true; render(); }
+  } catch { ui.nomeConferido = false; }
+}
+
 async function sync() {
   if (!S.spreadsheet || !B.hasToken()) { if (S.spreadsheet && !B.hasToken()) { S.status.authNeeded = true; ui.forceRender = true; render(); } return; }
   try {
@@ -1445,6 +1455,7 @@ async function sync() {
       await S.pull();
       ui.sheetError = null;
       M.estenderRecorrencias(S);
+      atualizarNomePlanilha();
     }
   } catch (e) { handleError(e); }
 }
@@ -1769,7 +1780,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=25', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=26', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

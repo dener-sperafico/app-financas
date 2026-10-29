@@ -1,6 +1,6 @@
 // Modo demonstração: imita o Google guardando a "planilha" no próprio navegador.
 // Abra o app com ?demo=1 para usar. Nada é enviado para o Google.
-import { SHEETS } from './schema.js?v=25';
+import { SHEETS } from './schema.js?v=26';
 
 const KEY = 'af_mock_db';
 
