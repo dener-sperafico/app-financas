@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=19';
-import { MockBackend } from './mock.js?v=19';
-import { Store } from './store.js?v=19';
-import { objToRow } from './schema.js?v=19';
-import * as M from './model.js?v=19';
-import { interpretar, previstoParecido } from './parser.js?v=19';
-import { ic, icCategoria } from './icones.js?v=19';
+import { GoogleBackend, AuthError } from './google.js?v=20';
+import { MockBackend } from './mock.js?v=20';
+import { Store } from './store.js?v=20';
+import { objToRow } from './schema.js?v=20';
+import * as M from './model.js?v=20';
+import { interpretar, previstoParecido } from './parser.js?v=20';
+import { ic, icCategoria } from './icones.js?v=20';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=19';
+} from './util.js?v=20';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -298,7 +298,7 @@ function scrInicio() {
   const porCategoria = res.linhas.filter(x => x.categoria.tipo === 'saida' && !x.categoria.sistema && x.orcado)
     .sort((a, b) => (b.disponivel < 0) - (a.disponivel < 0) || b.uso - a.uso).slice(0, 5);
   return `${desk ? composer(true) : ''}${banners()}
-    <div class="cabecalho"><img class="marca-ic" src="icons/oikon.svg" alt="Oikon"><span class="chip">Casa · ${cap(monthName(mes, false))}</span></div>
+    <div class="cabecalho"><img class="marca-ic" src="icons/oikon.svg" alt="Oikon"></div>
     ${semSaldo || semOrc ? `<div class="card info stack" style="margin-bottom:var(--esp-4)"><b>Falta pouco para a casa ficar pronta</b>
       ${semSaldo ? '<a href="#/setup/saldo">Informar quanto tem na conta</a>' : ''}
       ${semOrc ? `<a href="#/setup/orcamento">Orçar ${monthName(mes, false)}</a>` : ''}
@@ -348,7 +348,7 @@ function destaque(fd, res, mes) {
   const sa = res.saidas;
   const usado = round2(sa.realizado + sa.previsto);
   return `<a class="destaque" href="#/mes" data-act="composicao">
-    <span class="rot">No fim do mês, deve ${neg ? 'faltar' : 'sobrar'}</span>
+    <span class="rot">No fim de ${monthName(mes, false)}, deve ${neg ? 'faltar' : 'sobrar'}</span>
     <span class="valor ${neg ? 'neg' : ''}">${formatarReais(Math.abs(fd.total), { inteiro: true })}</span>
     <span class="exp">${exp}</span>
     ${sa.orcado ? `<span class="saidas">
@@ -1665,7 +1665,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=19', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=20', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
