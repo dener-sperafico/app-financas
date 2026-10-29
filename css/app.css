@@ -464,3 +464,8 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .mes-fut .corpo { padding: var(--esp-3); display: flex; flex-direction: column; gap: var(--esp-3); }
 .mes-fut .corpo .item { background: var(--cor-fundo); }
 .mes-fut .corpo .item.negativo { background: var(--cor-negativo-fundo); }
+/* Assinatura no topo da Início (ícone + nome), proporções da seção 7.5 */
+.marca-casa { display: inline-flex; align-items: center; gap: 12px; }
+.marca-casa img { width: 40px; height: 40px; }
+.marca-casa span { font-family: var(--fonte-numero); font-weight: 600; font-size: 24px; letter-spacing: -0.01em; color: var(--cor-noite); }
+@media (min-width: 960px) { .cabecalho .marca-casa { display: none; } .cabecalho { justify-content: flex-end; } }

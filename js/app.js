@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=23';
-import { MockBackend } from './mock.js?v=23';
-import { Store } from './store.js?v=23';
-import { objToRow } from './schema.js?v=23';
-import * as M from './model.js?v=23';
-import { interpretar, previstoParecido } from './parser.js?v=23';
-import { ic, icCategoria } from './icones.js?v=23';
+import { GoogleBackend, AuthError } from './google.js?v=24';
+import { MockBackend } from './mock.js?v=24';
+import { Store } from './store.js?v=24';
+import { objToRow } from './schema.js?v=24';
+import * as M from './model.js?v=24';
+import { interpretar, previstoParecido } from './parser.js?v=24';
+import { ic, icCategoria } from './icones.js?v=24';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=23';
+} from './util.js?v=24';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -299,10 +299,12 @@ function scrInicio() {
   const ultimos = S.get('Lancamentos').filter(l => l.situacao === 'confirmado').slice().sort((a, b) => (b.criado_em || '').localeCompare(a.criado_em || '')).slice(0, 5);
   const semSaldo = M.cfg(S, 'saldo_inicial') === '' || M.cfg(S, 'saldo_inicial') === undefined;
   const semOrc = !S.get('Orcamento').some(o => o.mes === mes);
+  const fora = res.linhas.find(x => x.categoria.id === M.FORA);
+  const totalFora = fora ? round2(fora.realizado + fora.previsto) : 0;
   const porCategoria = res.linhas.filter(x => x.categoria.tipo === 'saida' && !x.categoria.sistema && x.orcado)
     .sort((a, b) => (b.disponivel < 0) - (a.disponivel < 0) || b.uso - a.uso).slice(0, 5);
   return `${desk ? composer(true) : ''}${banners()}
-    <div class="cabecalho"><img class="marca-ic" src="icons/oikon.svg" alt="Oikon"><a class="chip" href="#/futuro">${ic('chart-no-axes-column')}Futuro</a></div>
+    <div class="cabecalho"><span class="marca-casa"><img src="icons/oikon.svg" alt=""><span>Oikon</span></span><a class="chip" href="#/futuro">${ic('chart-no-axes-column')}Futuro</a></div>
     ${semSaldo || semOrc ? `<div class="card info stack" style="margin-bottom:var(--esp-4)"><b>Falta pouco para a casa ficar pronta</b>
       ${semSaldo ? '<a href="#/setup/saldo">Informar quanto tem na conta</a>' : ''}
       ${semOrc ? `<a href="#/setup/orcamento">Orçar ${monthName(mes, false)}</a>` : ''}
@@ -317,6 +319,7 @@ function scrInicio() {
         <h2 class="section-title">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}${pend.length > 3 ? '<a class="btn link r" href="#/pendentes">Ver todos</a>' : ''}</h2>
         ${pend.length ? `<div class="list">${pend.slice(0, 3).map(pendItem).join('')}</div>`
           : '<p class="apoio">Nada para confirmar. Pode ir fazer outra coisa da vida.</p>'}
+        ${totalFora ? `<div style="margin-top:var(--esp-4)">${aviso('', '', `${money(totalFora)} em gastos fora do orçamento este mês. <a href="#/mes/${mes}/${M.FORA}">Ver</a>`)}</div>` : ''}
         ${atencao.length ? `<div class="stack" style="margin-top:var(--esp-4)">${atencao.slice(0, 3).map(x => x.disponivel < 0
           ? aviso('err', '', `${esc(x.categoria.nome)} passou ${money(-x.disponivel)} do orçado este mês.`)
           : aviso('warn', '', `${esc(x.categoria.nome)} está perto do limite: sobram ${money(x.disponivel)} até o fim do mês.`)).join('')}</div>` : ''}
@@ -389,7 +392,7 @@ function linhaCategoria(x, mes) {
   const entrada = c.tipo === 'entrada';
   const usado = round2(x.realizado + x.previsto);
   const est = !entrada && x.orcado !== null && x.disponivel < 0;
-  const rodape = entrada
+  const rodape = c.id === M.FORA ? 'Gastos que não se encaixam em nenhuma categoria' : entrada
     ? (x.orcado !== null ? `Falta receber: ${money(Math.max(0, x.orcado - x.realizado))}` : 'Sem orçado neste mês')
     : x.orcado === null ? 'Sem orçado neste mês'
     : est ? `<span class="neg">${money(-x.disponivel)} acima</span>` : `Disponível: ${money(x.disponivel)}`;
@@ -864,7 +867,7 @@ const head = title => `<div class="mh"><h2 id="mh-t">${title}</h2><button class=
 function interpretacao(m) {
   const d = m.d;
   const e = m.errors || {};
-  const cat = M.categoria(S, d.categoria_id);
+  const cat = d.categoria_id === M.FORA ? { id: M.FORA, nome: 'Fora do orçamento' } : M.categoria(S, d.categoria_id);
   const card = d.forma === 'cartao' ? M.cartao(S, d.cartao_id) : null;
   const precisaCartao = d.forma === 'cartao' && !d.cartao_id;
   const fprev = faturaPreview(d);
@@ -884,10 +887,11 @@ function interpretacao(m) {
       <label class="field"><span>Descrição</span><input name="descricao" value="${esc(d.descricao || '')}"></label>`,
     tipo: () => `<div class="seg" role="radiogroup" aria-label="Tipo">${Object.entries(TIPOS).map(([v, l]) => `<label><input type="radio" name="tipo" value="${v}" ${d.tipo === v ? 'checked' : ''} data-change>${l}</label>`).join('')}</div>`,
     categoria: () => {
-      const cats = M.categorias(S, { tipo: d.tipo }).filter(c => !c.sistema || c.id === d.categoria_id);
+      const cats = M.categorias(S, { tipo: d.tipo }).filter(c => !c.sistema || (c.id === d.categoria_id && c.id !== M.FORA));
       return `<label class="field ${e.categoria ? 'err' : ''}"><span>Categoria</span>
-        <select name="categoria_id" data-change data-foco><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select>
-        ${e.categoria ? `<span class="error" role="alert">${e.categoria}</span>` : !d.categoria_id ? `<span class="hint">${d.descricao ? `Não reconheci "${esc(d.descricao.toLowerCase())}". Qual é a categoria? (Vou lembrar da próxima vez.)` : 'Qual é a categoria?'}</span>` : ''}</label>`;
+        <select name="categoria_id" data-change data-foco><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
+        ${e.categoria ? `<span class="error" role="alert">${e.categoria}</span>` : !d.categoria_id ? `<span class="hint">${d.descricao ? `Não reconheci "${esc(d.descricao.toLowerCase())}". Qual é a categoria? (Vou lembrar da próxima vez.)` : 'Qual é a categoria?'}</span>` : ''}</label>
+        ${d.tipo === 'saida' && d.categoria_id !== M.FORA ? `<button type="button" class="btn link" data-act="fora" style="align-self:flex-start">Não se encaixa em nenhuma? Lançar fora do orçamento</button>` : ''}`;
     },
     forma: () => {
       const formas = [...M.FORMAS.filter(f => f.id !== 'cartao').map(f => [f.id, f.nome]), ...(d.tipo === 'entrada' ? [] : M.cartoes(S).map(c => [`cartao:${c.id}`, `Cartão · ${c.nome}`]))];
@@ -922,7 +926,7 @@ function interpretacao(m) {
   const dataRot = d.data === hoje() ? 'Hoje' : d.data === addDays(hoje(), -1) ? 'Ontem' : fmtDate(d.data);
   const chips = [
     chip('tipo', TIPOS[d.tipo]),
-    cat ? chip('categoria', esc(cat.nome)) : chip('categoria', 'Escolher categoria', true),
+    d.categoria_id === M.FORA ? chip('categoria', 'Fora do orçamento') : cat ? chip('categoria', esc(cat.nome)) : chip('categoria', 'Escolher categoria', true),
     precisaCartao ? chip('forma', 'Escolher o cartão', true) : chip('forma', esc(card ? card.nome : M.formaNome(d.forma))),
     chip('data', dataRot),
     card ? chip('fatura', `Fatura de ${monthName(fatMes, false)}`) : '',
@@ -953,6 +957,7 @@ function interpretacao(m) {
 
 // Retorno da categoria antes de salvar (R9, R10): como ela fica com este lançamento.
 function avisoCategoria(d, mes) {
+  if (d.categoria_id === M.FORA) return aviso('', '', 'Fora do orçamento: este gasto não entra em nenhuma categoria e não precisa de orçado. Ele sai do saldo normalmente e aparece no Mês, separado.');
   const c = M.categoria(S, d.categoria_id);
   if (!c || c.sistema || !(d.valor > 0)) return '';
   const x = M.catMes(S, c.id, mes);
@@ -969,6 +974,7 @@ function avisoCategoria(d, mes) {
 
 function salvarDraft(m, acao) {
   const d = m.d;
+  if (d.categoria_id === M.FORA) M.garantirFora(S);
   if (!d.descricao) d.descricao = M.categoria(S, d.categoria_id)?.nome || 'Lançamento';
   const mes = mesDoDraft(d);
   if (M.precisaOrcado(S, d.categoria_id, mes) && !(m.dup && d.dup === 'confirmar')) M.setOrcado(S, d.categoria_id, mes, parseMoney(d.orcado_valor), false);
@@ -1097,7 +1103,7 @@ function draftForm(m) {
   const d = m.d;
   const isEdit = m.type === 'editar';
   const tipos = [['saida', 'Saída'], ['entrada', 'Entrada'], ['investimento', 'Investimento']];
-  const cats = M.categorias(S, { tipo: d.tipo }).filter(c => !c.sistema || c.id === d.categoria_id);
+  const cats = M.categorias(S, { tipo: d.tipo }).filter(c => !c.sistema || (c.id === d.categoria_id && c.id !== M.FORA));
   const cards = M.cartoes(S);
   const formaVal = d.forma === 'cartao' ? `cartao:${d.cartao_id || ''}` : d.forma;
   const formas = [...M.FORMAS.filter(f => f.id !== 'cartao').map(f => [f.id, f.nome]), ...(d.tipo === 'entrada' ? [] : cards.map(c => [`cartao:${c.id}`, `Cartão · ${c.nome}`]))];
@@ -1126,7 +1132,7 @@ function draftForm(m) {
       ${campoValor('valor', d.repeticao === 'parcelada' ? 'Valor total' : 'Valor', d.valor, false, e.valor ? 'err' : '')}${e.valor ? `<span class="error" role="alert">${e.valor}</span>` : ''}
       <label class="field"><span>Descrição</span><input name="descricao" value="${esc(d.descricao || '')}"></label>
       <label class="field ${e.categoria ? 'err' : ''}"><span>Categoria${d.categoriaSugerida && !isEdit ? ' · sugerida' : ''}</span>
-        <select name="categoria_id" data-change><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select>
+        <select name="categoria_id" data-change><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
         ${e.categoria ? `<span class="error">${e.categoria}</span>` : ''}
         ${!d.categoria_id && !isEdit ? `<span class="hint">Categoria não reconhecida. A escolha ensina o app para as próximas vezes.</span>` : ''}</label>
       <label class="field ${e.forma ? 'err' : ''}"><span>Pagamento</span>
@@ -1516,6 +1522,7 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
+  fora(el) { const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m); m.d.categoria_id = M.FORA; m.d.tipo = 'saida'; m.aberto = null; m.errors = null; renderModal(); },
   'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) { alvo.open = true; ui.futuroAbertos?.add(el.dataset.mes); } if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
   tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
   'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
@@ -1764,7 +1771,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=23', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=24', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

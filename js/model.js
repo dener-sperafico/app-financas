@@ -1,8 +1,15 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=23';
-import { SEED_CATEGORIES } from './schema.js?v=23';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=24';
+import { SEED_CATEGORIES } from './schema.js?v=24';
 
 export const AJUSTES = 'cat_ajustes';
+// Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
+export const FORA = 'cat_fora_orcamento';
+export function garantirFora(S) {
+  if (!S.find('Categorias', FORA)) {
+    S.upsert('Categorias', { id: FORA, nome: 'Fora do orçamento', tipo: 'saida', repasse: false, dia_transferencia: null, sistema: true, arquivada: false, ordem: 999, forma_prevista: '' });
+  }
+}
 export const FORMAS = [
   { id: 'pix', nome: 'Pix' }, { id: 'debito', nome: 'Débito' }, { id: 'dinheiro', nome: 'Dinheiro' },
   { id: 'boleto', nome: 'Boleto' }, { id: 'cartao', nome: 'Cartão' },
@@ -492,7 +499,7 @@ export function palavrasDe(texto) {
 }
 
 export function aprender(S, descricao, catId) {
-  if (!catId || catId === AJUSTES) return;
+  if (!catId || catId === AJUSTES || catId === FORA) return;
   palavrasDe(descricao).forEach(p => {
     const ex = S.find('Palavras', p);
     if (ex && ex.categoria_id === catId) S.upsert('Palavras', { ...ex, usos: (ex.usos || 0) + 1 });

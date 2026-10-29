@@ -93,4 +93,5 @@ export const SEED_CATEGORIES = [
   { id: 'cat_compras', nome: 'Compras', tipo: 'saida', palavras: ['roupa', 'loja', 'presente'] },
   { id: 'cat_reserva', nome: 'Reserva de emergência', tipo: 'investimento', palavras: ['aporte', 'reserva', 'investimento'] },
   { id: 'cat_ajustes', nome: 'Ajustes', tipo: 'saida', sistema: true, palavras: [] },
+  { id: 'cat_fora_orcamento', nome: 'Fora do orçamento', tipo: 'saida', sistema: true, palavras: [] },
 ];
