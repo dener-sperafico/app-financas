@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=6';
-import { SEED_CATEGORIES } from './schema.js?v=6';
+import { addMonths, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=8';
+import { SEED_CATEGORIES } from './schema.js?v=8';
 
 export const AJUSTES = 'cat_ajustes';
 export const FORMAS = [
@@ -58,11 +58,35 @@ export const faturaTotal = (S, faturaId) => round2(S.get('Lancamentos')
 export const faturaItens = (S, faturaId) => S.get('Lancamentos').filter(l => l.fatura_id === faturaId)
   .sort((a, b) => a.data.localeCompare(b.data));
 
-export function faturasDoCartao(S, cardId) {
+export function faturasDoCartao(S, cardId, hoje = todayISO()) {
   const ids = new Set(S.get('Faturas').filter(f => f.cartao_id === cardId).map(f => f.id));
   S.get('Lancamentos').forEach(l => { if (l.cartao_id === cardId && l.fatura_id) ids.add(l.fatura_id); });
-  return [...ids].map(id => ({ ...faturaInfoFromId(S, id), total: faturaTotal(S, id) }))
-    .filter(f => f.mes).sort((a, b) => a.mes.localeCompare(b.mes));
+  // Meses futuros em que há orçado previsto para este cartão também têm fatura (estimada).
+  if (categoriasDoCartao(S, cardId).length) for (let i = 0; i <= 12; i++) ids.add(`${cardId}_${addMonthKey(monthOf(hoje), i)}`);
+  return [...ids].map(id => {
+    const total = faturaTotal(S, id);
+    const est = estimativaFatura(S, id, hoje);
+    const estimativa = round2(est.reduce((t, x) => t + x.valor, 0));
+    return { ...faturaInfoFromId(S, id), total, estimativa, previsao: round2(total + estimativa), est };
+  }).filter(f => f.mes && (f.total || f.estimativa || S.find('Faturas', f.id))).sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+// ---------- Forma de pagamento prevista por categoria ----------
+// Guardada como 'pix', 'debito', 'dinheiro', 'boleto' ou 'cartao:<id do cartão>'.
+export function formaPrevista(S, catId) {
+  const v = String(categoria(S, catId)?.forma_prevista || '');
+  if (!v) return null;
+  if (v.startsWith('cartao:')) { const c = cartao(S, v.slice(7)); return c && c.ativo ? { forma: 'cartao', cartao_id: c.id } : null; }
+  return { forma: v, cartao_id: '' };
+}
+export const categoriasDoCartao = (S, cardId) => categorias(S).filter(c => c.forma_prevista === `cartao:${cardId}` && c.tipo !== 'entrada');
+
+// O que ainda deve entrar numa fatura aberta: o orçado ainda não usado das categorias pagas neste cartão.
+export function estimativaFatura(S, faturaId, hoje = todayISO()) {
+  const f = faturaInfoFromId(S, faturaId);
+  if (!f || f.situacao === 'paga' || f.data_fechamento <= hoje) return [];
+  return categoriasDoCartao(S, f.cartao_id).map(c => ({ categoria: c, valor: Math.max(0, catMes(S, c.id, f.mes).disponivel) }))
+    .filter(x => x.valor > 0);
 }
 
 // ---------- Orçamento ----------
@@ -154,12 +178,20 @@ export function saldoAtual(S) {
   return round2(s);
 }
 
-const ehParcelaCartao = (S, l) => l.forma === 'cartao' && l.recorrencia_id && S.find('Recorrencias', l.recorrencia_id)?.repeticao === 'parcelada';
+// Repetições no cartão (parcelas e assinaturas) se resolvem sozinhas: viram realizadas quando a fatura delas fecha.
+// A 1ª parcela de uma compra parcelada já nasce realizada (a compra aconteceu). Nenhuma delas vira pendente.
+const ehParcelaCartao = (S, l) => {
+  if (l.forma !== 'cartao' || !l.recorrencia_id) return false;
+  const rep = S.find('Recorrencias', l.recorrencia_id)?.repeticao;
+  return rep === 'parcelada' || rep === 'mensal' || rep === 'anual';
+};
+const automatica = (S, l) => {
+  if (!ehParcelaCartao(S, l)) return false;
+  return S.find('Recorrencias', l.recorrencia_id).repeticao !== 'parcelada' || (l.ocorrencia || 1) > 1;
+};
 
-// Parcelas no cartão: a 1ª conta como realizada; as seguintes passam a realizadas quando a fatura delas fecha.
-// Não viram pendentes: resolvem-se sozinhas pela data de fechamento.
 export function sincronizarParcelas(S, hoje = todayISO()) {
-  S.get('Lancamentos').filter(l => ehParcelaCartao(S, l) && (l.ocorrencia || 1) > 1).forEach(l => {
+  S.get('Lancamentos').filter(l => automatica(S, l)).forEach(l => {
     const f = l.fatura_id ? faturaInfoFromId(S, l.fatura_id) : null;
     const deve = f && f.data_fechamento <= hoje ? 'confirmado' : 'previsto';
     if (l.situacao !== deve) S.upsert('Lancamentos', { ...l, situacao: deve });
@@ -256,7 +288,9 @@ export function montar(S, d, hoje = todayISO()) {
       if (rep === 'parcelada' && i > 0) fat = faturaInfo(card, dt);
     }
     // Parcelas no cartão: a primeira segue a compra; as seguintes ficam previstas até a fatura delas fechar.
-    const sit = i === 0 ? primeiraSit : (rep === 'parcelada' && card ? (fat && fat.data_fechamento <= hoje ? 'confirmado' : 'previsto') : (dt <= hoje ? 'confirmado' : 'previsto'));
+    const pelaFatura = fat && fat.data_fechamento <= hoje ? 'confirmado' : 'previsto';
+    const sit = card && rep !== 'unica' && (rep !== 'parcelada' || i > 0) ? pelaFatura
+      : i === 0 ? primeiraSit : (dt <= hoje ? 'confirmado' : 'previsto');
     return {
       id: d.id && i === 0 ? d.id : uid('lan'),
       tipo: d.tipo, descricao: d.descricao, valor: valores[i], categoria_id: d.categoria_id,

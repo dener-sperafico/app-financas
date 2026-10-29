@@ -1,13 +1,13 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=6';
-import { MockBackend } from './mock.js?v=6';
-import { Store } from './store.js?v=6';
-import { objToRow } from './schema.js?v=6';
-import * as M from './model.js?v=6';
-import { interpretar, previstoParecido } from './parser.js?v=6';
+import { GoogleBackend, AuthError } from './google.js?v=8';
+import { MockBackend } from './mock.js?v=8';
+import { Store } from './store.js?v=8';
+import { objToRow } from './schema.js?v=8';
+import * as M from './model.js?v=8';
+import { interpretar, previstoParecido } from './parser.js?v=8';
 import {
   todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=6';
+} from './util.js?v=8';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -527,8 +527,8 @@ function scrCartoes() {
     <h1>Cartões e faturas</h1>
     <div class="stack" style="margin-top:12px">
       ${cs.length ? `<div class="list">${cs.map(c => {
-        const prox = M.faturasDoCartao(S, c.id).find(f => f.situacao !== 'paga' && f.total > 0);
-        return `<a class="item" href="#/cartao/${esc(c.id)}"><span><span class="t">${esc(c.nome)}</span>${c.ativo ? '' : ' <span class="badge envio">inativo</span>'}<br><span class="s">${esc(c.titular)} · fecha ${c.dia_fechamento} · vence ${c.dia_vencimento}${prox ? ` · fatura ${monthName(prox.mes, false)} ${money(prox.total)}` : ''}</span></span><span>›</span></a>`;
+        const prox = M.faturasDoCartao(S, c.id).find(f => f.situacao !== 'paga' && f.previsao > 0);
+        return `<a class="item" href="#/cartao/${esc(c.id)}"><span><span class="t">${esc(c.nome)}</span>${c.ativo ? '' : ' <span class="badge envio">inativo</span>'}<br><span class="s">${esc(c.titular)} · fecha ${c.dia_fechamento} · vence ${c.dia_vencimento}${prox ? ` · fatura ${monthName(prox.mes, false)} ${money(prox.previsao)}${prox.estimativa ? ' (prevista)' : ''}` : ''}</span></span><span>›</span></a>`;
       }).join('')}</div>` : '<p class="muted">Nenhum cartão cadastrado. Gastos no cartão precisam do cartão para saber em qual fatura e mês contam.</p>'}
       ${cardForm(null, 'cartao')}
     </div>`;
@@ -537,12 +537,15 @@ function scrCartoes() {
 function scrCartao(id) {
   const c = M.cartao(S, id);
   if (!c) return `<div class="top">${backBtn('#/cartoes')}</div><p>Cartão não encontrado.</p>`;
-  const fats = M.faturasDoCartao(S, id).reverse();
+  const todas = M.faturasDoCartao(S, id);
+  // Próximas primeiro (da mais perto para a mais longe); pagas depois, da mais recente para a mais antiga.
+  const fats = [...todas.filter(f => f.situacao !== 'paga'), ...todas.filter(f => f.situacao === 'paga').reverse()];
   return `${banners()}
     <div class="top">${backBtn('#/cartoes')}</div>
     <h1>${esc(c.nome)}</h1>
     <div class="section-title">Faturas</div>
-    ${fats.length ? `<div class="list">${fats.map(f => `<button class="item" data-act="fatura" data-id="${esc(f.id)}"><span><span class="t">${cap(monthName(f.mes))}</span> ${f.situacao === 'paga' ? '' : (f.data_vencimento <= hoje() && f.total > 0 ? '<span class="badge pend">pendente</span>' : '')}<br><span class="s">fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}${f.situacao === 'paga' ? ` · paga em ${fmtDate(f.data_pagamento)}` : ''}</span></span><span class="r num">${money(f.total)}</span></button>`).join('')}</div>` : '<p class="muted">Nenhuma compra neste cartão ainda.</p>'}
+    ${fats.length ? `<div class="list">${fats.map(f => `<button class="item" data-act="fatura" data-id="${esc(f.id)}"><span><span class="t">${cap(monthName(f.mes))}</span> ${f.situacao === 'paga' ? '' : (f.data_vencimento <= hoje() && f.total > 0 ? '<span class="badge pend">pendente</span>' : '')}<br><span class="s">fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}${f.situacao === 'paga' ? ` · paga em ${fmtDate(f.data_pagamento)}` : ''}</span></span><span class="r"><span class="num">${money(f.previsao)}</span>${f.estimativa ? `<br><span class="s">${money(f.total)} lançado</span>` : ''}</span></button>`).join('')}</div>` : '<p class="muted">Nenhuma compra neste cartão ainda.</p>'}
+    ${M.categoriasDoCartao(S, id).length ? `<p class="small muted">Faturas abertas somam o que já foi lançado e o orçado ainda não gasto de: ${M.categoriasDoCartao(S, id).map(c => esc(c.nome)).join(', ')}.</p>` : ''}
     <div style="margin-top:16px">${cardForm(c, 'cartao')}</div>
     <p class="small muted">Cartão com compras não pode ser apagado: desmarque "Cartão em uso" para tirá-lo das opções.</p>`;
 }
@@ -551,13 +554,19 @@ function scrCartao(id) {
 function scrCategorias() {
   const grupo = (tipo, titulo) => {
     const cs = M.categorias(S, { tipo, todas: true }).filter(c => !c.sistema);
-    return `<div class="section-title">${titulo}</div><div class="list">${cs.map(c => `<button class="item" data-act="categoria" data-id="${esc(c.id)}"><span><span class="t">${esc(c.nome)}</span>${c.arquivada ? ' <span class="badge envio">arquivada</span>' : ''}${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}<br><span class="s">${esc(S.get('Palavras').filter(p => p.categoria_id === c.id).map(p => p.palavra).slice(0, 6).join(', ') || 'sem palavras')}</span></span><span>›</span></button>`).join('') || '<div class="item muted">Nenhuma</div>'}</div>`;
+    return `<div class="section-title">${titulo}</div><div class="list">${cs.map(c => `<button class="item" data-act="categoria" data-id="${esc(c.id)}"><span><span class="t">${esc(c.nome)}</span>${c.arquivada ? ' <span class="badge envio">arquivada</span>' : ''}${c.repasse ? ' <span class="badge prev">repasse</span>' : ''}<br><span class="s">${formaPrevistaNome(c) ? `pago em ${esc(formaPrevistaNome(c))} · ` : ''}${esc(S.get('Palavras').filter(p => p.categoria_id === c.id).map(p => p.palavra).slice(0, 6).join(', ') || 'sem palavras')}</span></span><span>›</span></button>`).join('') || '<div class="item muted">Nenhuma</div>'}</div>`;
   };
   return `${banners()}
     <div class="top">${backBtn('#/mais')}<button class="btn primary" data-act="categoria" data-id="">Nova categoria</button></div>
     <h1>Categorias</h1>
     <p class="small muted">As palavras são o que o campo de lançamento usa para sugerir a categoria. Elas também são aprendidas a cada lançamento.</p>
     ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}`;
+}
+
+function formaPrevistaNome(c) {
+  const fp = M.formaPrevista(S, c.id);
+  if (!fp) return '';
+  return fp.forma === 'cartao' ? (M.cartao(S, fp.cartao_id)?.nome || '') : M.formaNome(fp.forma);
 }
 
 // ---------- Ajustar saldo ----------
@@ -694,12 +703,18 @@ function readDraft(form, m) {
     if (c && c.tipo !== tipo) d.categoria_id = '';
     if (tipo === 'entrada' && d.forma === 'cartao') { d.forma = 'pix'; d.cartao_id = ''; }
   } else {
-    d.categoria_id = fd.get('categoria_id') || '';
+    const nova = fd.get('categoria_id') || '';
+    if (nova !== d.categoria_id && d.formaAuto && !d.id) {
+      const fp = M.formaPrevista(S, nova);
+      if (fp && d.tipo !== 'entrada') { d.forma = fp.forma; d.cartao_id = fp.cartao_id; d.fatura_id = ''; d.formaTrocada = true; }
+    }
+    d.categoria_id = nova;
   }
   if (fd.has('valor')) d.valor = parseMoney(fd.get('valor'));
   if (fd.has('descricao')) d.descricao = String(fd.get('descricao')).trim();
-  if (fd.has('forma')) {
+  if (fd.has('forma') && !d.formaTrocada) {
     const fv = String(fd.get('forma'));
+    if (fv !== (d.forma === 'cartao' ? `cartao:${d.cartao_id || ''}` : d.forma)) d.formaAuto = false;
     if (fv.startsWith('cartao:')) {
       const cid = fv.slice(7);
       if (cid !== d.cartao_id) d.fatura_id = '';
@@ -709,7 +724,7 @@ function readDraft(form, m) {
   if (fd.has('data')) { const nd = String(fd.get('data')); if (nd !== d.data) { d.data = nd; if (!d.fatura_manual) d.fatura_id = ''; } }
   if (fd.has('repeticao')) d.repeticao = String(fd.get('repeticao'));
   if (fd.has('vezes')) d.vezes = fd.get('vezes') ? Number(fd.get('vezes')) : null;
-  if (fd.has('fatura_id')) {
+  if (fd.has('fatura_id') && !d.formaTrocada) {
     const fid = String(fd.get('fatura_id'));
     const calc = faturaPreview(d);
     d.fatura_id = fid;
@@ -717,6 +732,7 @@ function readDraft(form, m) {
   }
   if (fd.has('orcado_valor')) d.orcado_valor = String(fd.get('orcado_valor'));
   if (fd.has('dup')) d.dup = String(fd.get('dup'));
+  d.formaTrocada = false;
   return d;
 }
 
@@ -819,13 +835,19 @@ function faturaPanel(m) {
   const c = M.cartao(S, f.cartao_id);
   const itens = M.faturaItens(S, m.id);
   const total = M.faturaTotal(S, m.id);
+  const est = M.estimativaFatura(S, m.id);
+  const estTotal = round2(est.reduce((t, x) => t + x.valor, 0));
   const paga = f.situacao === 'paga';
   const dataPadrao = f.data_vencimento <= hoje() ? f.data_vencimento : hoje();
   return `${head(`Fatura ${esc(c?.nome || '')} · ${monthName(f.mes, false)}`)}
     <p class="small muted">Compras de ${fmtDate(inicioFatura(f, c))} a ${fmtDate(addDays(f.data_fechamento, -1))} · fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)} · contam no orçamento de ${monthName(f.mes, false)}</p>
-    <div class="list" style="margin:10px 0">${itens.map(lancItem).join('') || '<div class="item muted">Sem itens</div>'}
-      <div class="item"><b>Total calculado</b><b class="num">${money(total)}</b></div></div>
-    ${paga ? `<div class="card info">Paga em ${fmtDate(f.data_pagamento)}.</div>` : `<form class="stack" data-form="pagar">
+    <div class="list" style="margin:10px 0">${itens.map(lancItem).join('') || '<div class="item muted">Nenhuma compra lançada ainda</div>'}
+      <div class="item"><b>${est.length ? 'Lançado até agora' : 'Total calculado'}</b><b class="num">${money(total)}</b></div></div>
+    ${est.length ? `<div class="section-title">Estimativa pelo orçado</div>
+      <div class="list">${est.map(x => `<div class="item"><span><span class="t">${esc(x.categoria.nome)}</span><br><span class="s">orçado ainda não gasto em ${monthName(f.mes, false)}</span></span><span class="r num muted">${money(x.valor)}</span></div>`).join('')}
+        <div class="item"><b>Fatura prevista</b><b class="num">${money(round2(total + estTotal))}</b></div></div>
+      <p class="small muted">A estimativa some conforme as compras são lançadas, e zera quando a fatura fecha. Mude a forma prevista de cada categoria em Mais › Categorias.</p>` : ''}
+    ${paga ? `<div class="card info">Paga em ${fmtDate(f.data_pagamento)}.</div>` : f.data_fechamento > hoje() ? `<p class="small muted">A fatura fecha em ${fmtDate(f.data_fechamento)}. O pagamento é confirmado depois disso.</p>` : `<form class="stack" data-form="pagar">
       <input type="hidden" name="id" value="${esc(m.id)}">
       <label class="field"><span>Valor cobrado pelo banco</span><input name="valor" inputmode="decimal" value="${esc(String(total).replace('.', ','))}"><span class="hint">Se for diferente do calculado, a diferença vira o item "Ajuste da fatura".</span></label>
       <label class="field"><span>Data do pagamento</span><input type="date" name="data" value="${dataPadrao}"><span class="hint">O saldo cai nesta data. Pode ser antes do vencimento.</span></label>
@@ -846,6 +868,11 @@ function categoriaPanel(m) {
       <div class="seg" role="radiogroup" aria-label="Tipo">${[['saida', 'Saída'], ['entrada', 'Entrada'], ['investimento', 'Investimento']].map(([v, l]) => `<label><input type="radio" name="tipo" value="${v}" ${(c?.tipo || 'saida') === v ? 'checked' : ''}>${l}</label>`).join('')}</div>
       <label class="check"><input type="checkbox" name="repasse" ${c?.repasse ? 'checked' : ''}> O dinheiro vai para a conta individual de alguém (repasse, como mesada)</label>
       <label class="field"><span>Dia da transferência (só para repasse)</span><input name="dia" type="number" min="1" max="31" value="${c?.dia_transferencia ?? 5}"></label>
+      ${(c?.tipo || 'saida') !== 'entrada' ? `<label class="field"><span>Forma de pagamento prevista</span><select name="forma_prevista">
+        <option value="">Sem previsão</option>
+        ${M.cartoes(S).map(k => `<option value="cartao:${esc(k.id)}" ${c?.forma_prevista === `cartao:${k.id}` ? 'selected' : ''}>Cartão · ${esc(k.nome)}</option>`).join('')}
+        ${M.FORMAS.filter(f => f.id !== 'cartao').map(f => `<option value="${f.id}" ${c?.forma_prevista === f.id ? 'selected' : ''}>${f.nome}</option>`).join('')}
+      </select><span class="hint">Onde o gasto costuma ser pago. O lançamento já vem com ela, e o orçado ainda não gasto aparece como estimativa na fatura do cartão.</span></label>` : ''}
       <label class="field"><span>Palavras associadas (separadas por vírgula)</span><input name="palavras" value="${esc(pals.map(p => p.palavra).join(', '))}"><span class="hint">O campo de lançamento usa estas palavras para sugerir a categoria.</span></label>
       ${c ? `<label class="check"><input type="checkbox" name="arquivada" ${c.arquivada ? 'checked' : ''} data-change-cat> Arquivada (some do lançamento e do orçamento, mas fica no histórico)</label>
         ${futuros.length && !c.arquivada ? `<label class="field"><span>Se arquivar: mover os ${futuros.length} previstos futuros para</span><select name="mover"><option value="">Escolha</option>${outras.map(o => `<option value="${esc(o.id)}">${esc(o.nome)}</option>`).join('')}</select></label>` : ''}` : ''}
@@ -886,6 +913,11 @@ function handleError(e) {
 async function sync() {
   if (!S.spreadsheet || !B.hasToken()) { if (S.spreadsheet && !B.hasToken()) { S.status.authNeeded = true; ui.forceRender = true; render(); } return; }
   try {
+    const ESTRUTURA = '2';
+    if (localStorage.getItem('af_estrutura') !== ESTRUTURA) {
+      await B.ensureSheets(S.spreadsheet.id);
+      localStorage.setItem('af_estrutura', ESTRUTURA);
+    }
     await S.flush();
     if (!S.queue.length && !S.status.authNeeded) {
       await S.pull();
@@ -1065,6 +1097,7 @@ const forms = {
       ...(prev || {}), id: novoId, nome, tipo: String(fd.get('tipo') || 'saida'),
       repasse: fd.get('repasse') === 'on', dia_transferencia: fd.get('repasse') === 'on' ? Number(fd.get('dia')) || 5 : null,
       sistema: false, arquivada: arquivar, ordem: prev?.ordem ?? cats.length + 1,
+      forma_prevista: String(fd.get('forma_prevista') ?? prev?.forma_prevista ?? ''),
     });
     const novas = new Set(String(fd.get('palavras') || '').split(',').map(normalize).map(s => s.trim()).filter(Boolean));
     S.get('Palavras').filter(p => p.categoria_id === novoId && !novas.has(p.palavra)).forEach(p => S.remove('Palavras', p.palavra));
@@ -1172,7 +1205,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=6', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=8', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

@@ -1,6 +1,6 @@
 // Campo único: interpreta frases como "gasolina 300 nubank dener 29/10" sem IA (N04).
-import { normalize, parseMoney, todayISO, addDays, dateOf, parseISO, pad, daysBetween } from './util.js?v=6';
-import { categorias, cartoes, palavrasDe, categoria } from './model.js?v=6';
+import { normalize, parseMoney, todayISO, addDays, dateOf, parseISO, pad, daysBetween } from './util.js?v=8';
+import { categorias, cartoes, palavrasDe, categoria, formaPrevista } from './model.js?v=8';
 
 const FORMA_WORDS = {
   pix: 'pix', debito: 'debito', dinheiro: 'dinheiro', especie: 'dinheiro', boleto: 'boleto',
@@ -95,7 +95,12 @@ export function interpretar(S, texto, hoje = todayISO()) {
 
   const cat = r.categoria_id ? categoria(S, r.categoria_id) : null;
   r.tipo = cat ? cat.tipo : 'saida';
-  if (!r.forma) r.forma = formaMaisUsada(S);
+  // Sem forma escrita: usa a forma prevista da categoria (ex.: gasolina → Nubank Dener); senão, a mais usada.
+  if (!r.forma) {
+    const fp = cat ? formaPrevista(S, cat.id) : null;
+    if (fp) { r.forma = fp.forma; r.cartao_id = fp.cartao_id; } else r.forma = formaMaisUsada(S);
+    r.formaAuto = true;
+  }
   if (r.tipo === 'entrada' && r.forma === 'cartao') r.forma = 'pix';
   return r;
 }

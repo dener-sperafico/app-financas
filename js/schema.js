@@ -4,7 +4,8 @@ const TRACK = ['criado_por', 'criado_em', 'alterado_por', 'alterado_em'];
 export const SHEETS = {
   Config: ['chave', 'valor'],
   Cartoes: ['id', 'nome', 'titular', 'dia_fechamento', 'dia_vencimento', 'ativo', ...TRACK],
-  Categorias: ['id', 'nome', 'tipo', 'repasse', 'dia_transferencia', 'sistema', 'arquivada', 'ordem', ...TRACK],
+  // forma_prevista: onde o gasto da categoria costuma ser pago ('pix', 'cartao:<id do cartão>' ...). Coluna nova fica no fim.
+  Categorias: ['id', 'nome', 'tipo', 'repasse', 'dia_transferencia', 'sistema', 'arquivada', 'ordem', ...TRACK, 'forma_prevista'],
   Palavras: ['palavra', 'categoria_id', 'origem', 'usos', ...TRACK],
   Orcamento: ['categoria_id', 'mes', 'valor', 'origem', ...TRACK],
   Lancamentos: ['id', 'tipo', 'descricao', 'valor', 'categoria_id', 'forma', 'cartao_id', 'data', 'mes_orcamento',

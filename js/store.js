@@ -1,7 +1,7 @@
 // Estado local, cache offline e sincronização com a planilha (fila de envio).
-import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=6';
-import { nowStamp } from './util.js?v=6';
-import { AuthError } from './google.js?v=6';
+import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=8';
+import { nowStamp } from './util.js?v=8';
+import { AuthError } from './google.js?v=8';
 
 export const TOMBSTONE = '#excluido';
 const BATCH = 200;
