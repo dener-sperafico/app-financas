@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=22';
-import { MockBackend } from './mock.js?v=22';
-import { Store } from './store.js?v=22';
-import { objToRow } from './schema.js?v=22';
-import * as M from './model.js?v=22';
-import { interpretar, previstoParecido } from './parser.js?v=22';
-import { ic, icCategoria } from './icones.js?v=22';
+import { GoogleBackend, AuthError } from './google.js?v=23';
+import { MockBackend } from './mock.js?v=23';
+import { Store } from './store.js?v=23';
+import { objToRow } from './schema.js?v=23';
+import * as M from './model.js?v=23';
+import { interpretar, previstoParecido } from './parser.js?v=23';
+import { ic, icCategoria } from './icones.js?v=23';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=22';
+} from './util.js?v=23';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -627,7 +627,7 @@ function scrFuturo() {
       ${graficoFechamento(fechamento)}
       <p class="small muted">${frase} Toque num mês para ver os dias.</p>
     </div>
-    ${meses.map(mes => blocoMesFuturo(p, mes)).join('')}
+    <div class="meses-fut secao">${meses.map(mes => blocoMesFuturo(p, mes)).join('')}</div>
     <p class="small muted secao">Gasto com data sai no dia dele. O que ainda sobra do orçado sem data é espalhado por igual pelos dias do mês; nas categorias pagas no cartão, entra na fatura. Meses sem orçado mostram só o que já está previsto.</p>`;
 }
 
@@ -665,11 +665,21 @@ function blocoMesFuturo(p, mes) {
       <span class="meio"><span class="t">${d.data === hojeISO ? 'Hoje' : rotuloDia(d.data)} ${marcas}</span>${movs ? `<span class="mvs">${movs}</span>` : ''}</span>
       <span class="r"><span class="num ${d.saldo < 0 ? 'neg' : ''}">${money(d.saldo)}</span><span class="small muted">no fim do dia</span></span></div>`;
   };
-  return `<section class="secao" id="mes-${mes}">
-    <h2 class="section-title">${cap(monthName(mes))}<span class="r num ${fim.saldo < 0 ? 'neg' : ''}">${fim.saldo < 0 ? 'deve faltar' : 'deve sobrar'} ${money(Math.abs(fim.saldo))}</span></h2>
-    ${pm && pm.livre ? `<p class="small muted" style="margin:-4px 0 var(--esp-3)">Gastos do dia a dia, pelo orçado ainda livre: ${money(pm.livre)}, cerca de ${money(pm.porDia)} por dia.</p>` : ''}
-    <div class="list">${mostrar.map(linha).join('')}</div>
-  </section>`;
+  // Acordeão: fechado mostra o fim do mês e o menor saldo; aberto mostra os dias. O mês atual começa aberto.
+  if (!ui.futuroAbertos) ui.futuroAbertos = new Set([monthOf(hojeISO)]);
+  const aberto = ui.futuroAbertos.has(mes);
+  return `<details class="mes-fut" id="mes-${mes}" data-mes="${mes}" ${aberto ? 'open' : ''}>
+    <summary>
+      <span class="meio"><span class="t">${cap(monthName(mes))}</span>
+        <span class="s">Menor saldo: <span class="num ${menor.saldo < 0 ? 'neg' : ''}">${money(menor.saldo)}</span> em ${fmtDate(menor.data)}</span></span>
+      <span class="r"><span class="small muted">${fim.saldo < 0 ? 'deve faltar' : 'deve sobrar'}</span><span class="num ${fim.saldo < 0 ? 'neg' : ''}">${money(Math.abs(fim.saldo))}</span></span>
+      ${ic('chevron-down', 'seta')}
+    </summary>
+    <div class="corpo">
+      ${pm && pm.livre ? `<p class="small muted">Gastos do dia a dia, pelo orçado ainda livre: ${money(pm.livre)}, cerca de ${money(pm.porDia)} por dia.</p>` : ''}
+      <div class="list">${mostrar.map(linha).join('')}</div>
+    </div>
+  </details>`;
 }
 
 // ---------- Mais ----------
@@ -1506,7 +1516,7 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
-  'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
+  'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) { alvo.open = true; ui.futuroAbertos?.add(el.dataset.mes); } if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
   tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
   'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
   'tutorial-fim'() { marcarTutorial(); closeModal(); },
@@ -1560,6 +1570,14 @@ document.addEventListener('input', ev => {
   }
   if (ev.target.id === 'cmp') { const b = ev.target.form?.querySelector('button'); if (b) b.disabled = !ev.target.value.trim(); }
 });
+
+// Acordeões do Futuro: lembra quais meses estão abertos entre um redesenho e outro.
+document.addEventListener('toggle', ev => {
+  const d = ev.target;
+  if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('mes-fut')) return;
+  if (!ui.futuroAbertos) ui.futuroAbertos = new Set();
+  if (d.open) ui.futuroAbertos.add(d.dataset.mes); else ui.futuroAbertos.delete(d.dataset.mes);
+}, true);
 
 // Teclado: Esc fecha o painel; "/" ou "n" leva ao campo de lançamento (8.2, 8.12).
 document.addEventListener('keydown', ev => {
@@ -1746,7 +1764,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=22', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=23', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=22';
-import { SEED_CATEGORIES } from './schema.js?v=22';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=23';
+import { SEED_CATEGORIES } from './schema.js?v=23';
 
 export const AJUSTES = 'cat_ajustes';
 export const FORMAS = [

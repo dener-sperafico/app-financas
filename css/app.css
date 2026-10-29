@@ -448,3 +448,19 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .dia-fut .r .num { font-size: var(--txt-numero-p); }
 @media (min-width: 960px) { .grafico { height: 220px; } }
 @media (max-width: 520px) { .grafico .col.impar:not(.atual) .mes { visibility: hidden; } }
+.meses-fut { display: flex; flex-direction: column; gap: 10px; }
+.mes-fut { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-m); }
+.mes-fut > summary { list-style: none; display: flex; align-items: center; gap: var(--esp-3); min-height: 64px; padding: var(--esp-3) 14px; cursor: pointer; border-radius: var(--raio-m); }
+.mes-fut > summary::-webkit-details-marker { display: none; }
+.mes-fut > summary:hover { background: var(--cor-lavanda-leve); }
+.mes-fut > summary .meio { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mes-fut > summary .t { font-weight: 800; font-size: var(--txt-titulo-3); }
+.mes-fut > summary .s { font-size: var(--txt-legenda); color: var(--cor-texto-3); }
+.mes-fut > summary .r { display: flex; flex-direction: column; align-items: flex-end; }
+.mes-fut > summary .r .num { font-size: var(--txt-numero-p); }
+.mes-fut > summary .seta { width: 20px; height: 20px; color: var(--cor-texto-3); transition: transform var(--mov-rapido) var(--mov-curva); }
+.mes-fut[open] > summary .seta { transform: rotate(180deg); }
+.mes-fut[open] > summary { border-bottom: 1px solid var(--cor-borda); border-radius: var(--raio-m) var(--raio-m) 0 0; }
+.mes-fut .corpo { padding: var(--esp-3); display: flex; flex-direction: column; gap: var(--esp-3); }
+.mes-fut .corpo .item { background: var(--cor-fundo); }
+.mes-fut .corpo .item.negativo { background: var(--cor-negativo-fundo); }
