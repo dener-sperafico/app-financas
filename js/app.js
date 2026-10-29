@@ -1,13 +1,13 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=4';
-import { MockBackend } from './mock.js?v=4';
-import { Store } from './store.js?v=4';
-import { objToRow } from './schema.js?v=4';
-import * as M from './model.js?v=4';
-import { interpretar, previstoParecido } from './parser.js?v=4';
+import { GoogleBackend, AuthError } from './google.js?v=5';
+import { MockBackend } from './mock.js?v=5';
+import { Store } from './store.js?v=5';
+import { objToRow } from './schema.js?v=5';
+import * as M from './model.js?v=5';
+import { interpretar, previstoParecido } from './parser.js?v=5';
 import {
   todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=4';
+} from './util.js?v=5';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1161,7 +1161,14 @@ async function boot() {
     else { S.status.authNeeded = true; ui.forceRender = true; render(); }
   }
   if ('serviceWorker' in navigator && !DEMO) {
-    navigator.serviceWorker.register('./sw.js?v=4').catch(() => {});
+    // Versão nova instalada: recarrega uma vez para usar os arquivos novos (sem precisar limpar nada).
+    const tinha = !!navigator.serviceWorker.controller;
+    let recarregou = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
+      recarregou = true; location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js?v=5', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
