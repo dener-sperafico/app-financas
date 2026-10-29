@@ -1,10 +1,10 @@
 // Guarda as telas do app no aparelho para abrir sem internet.
 // Os dados ficam no próprio app; este arquivo só cuida dos arquivos do site.
-const VERSION = 'af-v3';
+const VERSION = 'af-v4';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/app.js', './js/config.js', './js/schema.js', './js/util.js', './js/model.js',
-  './js/parser.js', './js/store.js', './js/google.js', './js/mock.js',
+  './js/app.js?v=4', './js/config.js?v=4', './js/schema.js?v=4', './js/util.js?v=4', './js/model.js?v=4',
+  './js/parser.js?v=4', './js/store.js?v=4', './js/google.js?v=4', './js/mock.js?v=4',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-180.png',
 ];
 

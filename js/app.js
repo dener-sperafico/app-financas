@@ -1,13 +1,13 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js';
-import { MockBackend } from './mock.js';
-import { Store } from './store.js';
-import { objToRow } from './schema.js';
-import * as M from './model.js';
-import { interpretar, previstoParecido } from './parser.js';
+import { GoogleBackend, AuthError } from './google.js?v=4';
+import { MockBackend } from './mock.js?v=4';
+import { Store } from './store.js?v=4';
+import { objToRow } from './schema.js?v=4';
+import * as M from './model.js?v=4';
+import { interpretar, previstoParecido } from './parser.js?v=4';
 import {
   todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js';
+} from './util.js?v=4';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1161,7 +1161,7 @@ async function boot() {
     else { S.status.authNeeded = true; ui.forceRender = true; render(); }
   }
   if ('serviceWorker' in navigator && !DEMO) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=4').catch(() => {});
   }
 }
 boot();
