@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=36';
-import { MockBackend } from './mock.js?v=36';
-import { Store } from './store.js?v=36';
-import { objToRow } from './schema.js?v=36';
-import * as M from './model.js?v=36';
-import { interpretar, previstoParecido } from './parser.js?v=36';
-import { ic, icCategoria } from './icones.js?v=36';
+import { GoogleBackend, AuthError } from './google.js?v=38';
+import { MockBackend } from './mock.js?v=38';
+import { Store } from './store.js?v=38';
+import { objToRow } from './schema.js?v=38';
+import * as M from './model.js?v=38';
+import { interpretar, previstoParecido } from './parser.js?v=38';
+import { ic, icCategoria } from './icones.js?v=38';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=36';
+} from './util.js?v=38';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -766,6 +766,36 @@ function sheetLink(label) {
   return `<a class="btn" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/${esc(S.spreadsheet.id)}/edit">${label}</a>`;
 }
 
+// ---------- Leitura de fatura: já na fatura + ainda pode entrar = deve fechar em ----------
+function situacaoFatura(f) {
+  const h = hoje();
+  if (f.situacao === 'paga') return { tipo: 'ok', curto: 'paga', texto: `Paga em ${fmtDate(f.data_pagamento)}` };
+  if (f.data_vencimento <= h && f.total > 0) return { tipo: 'pend', curto: 'para confirmar', texto: `Venceu em ${fmtDate(f.data_vencimento)}. Confirme o pagamento` };
+  if (f.data_fechamento <= h) return { tipo: 'envio', curto: 'fechada', texto: `Fechou em ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}` };
+  return { tipo: 'prev', curto: 'aberta', texto: `Aberta até ${fmtDate(addDays(f.data_fechamento, -1))} · vence ${fmtDate(f.data_vencimento)}` };
+}
+
+// Bloco de leitura da fatura. compacto: para listas (sem legenda detalhada).
+function leituraFatura(f, { compacto = false, cats = [] } = {}) {
+  const st = situacaoFatura(f);
+  const aberta = f.situacao !== 'paga' && f.data_fechamento > hoje();
+  const est = aberta ? (f.estimativa || 0) : 0;
+  const total = round2(f.total + est);
+  const pctNa = total > 0 ? (f.total / total) * 100 : 0;
+  const rotulo = f.situacao === 'paga' ? 'Valor pago' : aberta && est ? 'Deve fechar em' : aberta ? 'Até agora' : 'Valor da fatura';
+  const barra = aberta && est ? `<span class="bar fat" aria-hidden="true"><i style="width:${pctNa}%"></i><i class="prev" style="width:${100 - pctNa}%"></i></span>` : '';
+  const legenda = aberta && est
+    ? `<span class="leg"><span><i class="ponto"></i>Já na fatura</span><span class="num">${money(f.total)}</span></span>
+       <span class="leg"><span><i class="ponto prev"></i>Ainda pode entrar${compacto ? '' : `<span class="small muted"> · orçado não gasto${cats.length ? ` de ${cats.map(c => esc(c.nome)).join(', ')}` : ''}</span>`}</span><span class="num muted">${money(est)}</span></span>`
+    : '';
+  return `<span class="leitura-fat">
+    <span class="row"><span class="small muted">${rotulo}</span><span class="badge ${st.tipo}">${st.curto}</span></span>
+    <span class="big num">${money(total)}</span>
+    ${barra}${legenda}
+    <span class="small muted">${st.texto}</span>
+  </span>`;
+}
+
 function scrCartoes() {
   const cs = M.cartoes(S, true);
   return `${banners()}
@@ -774,11 +804,9 @@ function scrCartoes() {
     <div class="stack">
       ${cs.length ? cs.map(c => {
         const prox = M.faturasDoCartao(S, c.id).find(f => f.situacao !== 'paga' && f.previsao > 0);
-        return `<a class="card stack" href="#/cartao/${esc(c.id)}" style="gap:var(--esp-2)">
-          <div class="row"><h2>${esc(c.nome)}${c.ativo ? '' : ' <span class="badge envio">fora de uso</span>'}</h2>${ic('chevron-right')}</div>
-          <span class="small muted">${esc(c.titular)} · fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</span>
-          ${prox ? `<span class="label">Fatura de ${monthName(prox.mes, false)}</span><span class="big num">${money(prox.previsao)}</span>
-            <span class="small muted">${money(prox.total)} lançado${prox.estimativa ? ` · ${money(prox.estimativa)} estimado pelo orçado` : ''}</span>` : '<span class="small muted">Nenhuma fatura aberta.</span>'}
+        return `<a class="card stack" href="#/cartao/${esc(c.id)}" style="gap:var(--esp-3)">
+          <span class="row"><span><h2>${esc(c.nome)}${c.ativo ? '' : ' <span class="badge envio">fora de uso</span>'}</h2><span class="small muted">${esc(c.titular)} · fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</span></span>${ic('chevron-right')}</span>
+          ${prox ? `<span class="label">Próxima fatura: ${monthName(prox.mes, false)}</span>${leituraFatura(prox, { cats: M.categoriasDoCartao(S, c.id) })}` : '<span class="small muted">Nenhuma fatura aberta.</span>'}
         </a>`;
       }).join('') : `<div class="vazio">${ic('credit-card')}<p>Nenhum cartão cadastrado. Gastos no cartão precisam dele para saber em qual fatura e mês contam.</p></div>`}
       ${cardForm(null, 'cartao')}
@@ -799,16 +827,11 @@ function scrCartao(id) {
     <h1>${esc(c.nome)}</h1>
     <p class="small muted" style="margin-top:var(--esp-1)">${esc(c.titular)} · fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</p>
     <h2 class="section-title">Faturas</h2>
+    <p class="small muted" style="margin:-4px 0 var(--esp-3)"><b>Já na fatura</b>: compras lançadas. <b>Ainda pode entrar</b>: o orçado que ainda não foi gasto nas categorias pagas neste cartão. Somados, dão quanto a fatura <b>deve fechar</b>.</p>
     ${ocultas.length ? `<button class="btn link" data-act="faturas-antigas" data-id="${esc(id)}">Ver faturas anteriores (${ocultas.length})</button>` : ''}
-    ${fats.length ? `<div class="list">${fats.map(f => {
-      const paga = f.situacao === 'paga';
-      const vencida = !paga && f.data_vencimento <= hoje() && f.total > 0;
-      return `<button class="item" data-act="fatura" data-id="${esc(f.id)}">${ic('credit-card')}
-        <span class="meio"><span class="t">${cap(monthName(f.mes))}${vencida ? ' <span class="badge pend">para confirmar</span>' : ''}</span>
-          <span class="s">fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}${paga ? ` · paga em ${fmtDate(f.data_pagamento)}` : ''}</span></span>
-        <span class="r"><span class="num">${money(paga ? f.total : f.previsao)}</span>${f.estimativa ? `<span class="small muted">${money(f.total)} lançado · ${money(f.estimativa)} estimado</span>` : paga ? '<span class="badge ok">paga</span>' : ''}</span></button>`;
-    }).join('')}</div>` : `<div class="vazio">${ic('credit-card')}<p>Nenhuma compra neste cartão ainda.</p></div>`}
-    ${cats.length ? `<p class="small muted" style="margin-top:var(--esp-3)">Faturas abertas somam o que já foi lançado e o orçado ainda não gasto de: ${cats.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
+    ${fats.length ? `<div class="list">${fats.map(f => `<button class="item fat-item" data-act="fatura" data-id="${esc(f.id)}">
+        <span class="meio"><span class="t">${cap(monthName(f.mes))}</span>${leituraFatura(f, { compacto: true })}</span>${ic('chevron-right')}</button>`).join('')}</div>` : `<div class="vazio">${ic('credit-card')}<p>Nenhuma compra neste cartão ainda.</p></div>`}
+    ${cats.length ? `<p class="small muted" style="margin-top:var(--esp-3)">Categorias pagas neste cartão: ${cats.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
     <div class="secao">${cardForm(c, 'cartao')}</div>
     <p class="small muted" style="margin-top:var(--esp-3)">Cartão com compras não pode ser apagado: desligue "Cartão em uso" para tirá-lo das opções.</p>`;
 }
@@ -1086,26 +1109,28 @@ function orcadoPanel(m) {
 }
 
 function faturaPanel(m) {
-  const f = M.faturaInfoFromId(S, m.id);
-  if (!f) return head('Fatura') + '<p>Fatura não encontrada.</p>';
-  const c = M.cartao(S, f.cartao_id);
+  const f0 = M.faturaInfoFromId(S, m.id);
+  if (!f0) return head('Fatura') + '<p>Fatura não encontrada.</p>';
+  const c = M.cartao(S, f0.cartao_id);
   const itens = M.faturaItens(S, m.id);
   const total = M.faturaTotal(S, m.id);
   const est = M.estimativaFatura(S, m.id);
   const estTotal = round2(est.reduce((t, x) => t + x.valor, 0));
+  const f = { ...f0, total, estimativa: estTotal };
   const paga = f.situacao === 'paga';
+  const aberta = !paga && f.data_fechamento > hoje();
   const dataPadrao = f.data_vencimento <= hoje() ? f.data_vencimento : hoje();
   return `${head(`Fatura ${esc(c?.nome || '')} · ${monthName(f.mes, false)}`)}
-    <div class="num" style="font-size:var(--txt-numero-g);line-height:1.1">${money(round2(total + estTotal))}</div>
-    <p class="small muted" style="margin:var(--esp-1) 0 var(--esp-4)">Compras de ${fmtDate(inicioFatura(f, c))} a ${fmtDate(addDays(f.data_fechamento, -1))} · fecha ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)} · contam no orçamento de ${monthName(f.mes, false)}</p>
-    <div class="list">${itens.map(l => lancItem(l, { data: true })).join('') || '<p class="apoio">Nenhuma compra lançada ainda.</p>'}
-      <div class="item total"><span class="meio"><span class="t">${est.length ? 'Lançado até agora' : 'Total calculado'}</span></span><span class="r"><span class="num">${money(total)}</span></span></div></div>
-    ${est.length ? `<h3 class="section-title">Estimado pelo orçado</h3>
-      <div class="list">${est.map(x => `<div class="item">${icCategoria(x.categoria)}<span class="meio"><span class="t">${esc(x.categoria.nome)}</span><span class="s">orçado ainda não gasto em ${monthName(f.mes, false)}</span></span><span class="r"><span class="num apoio">${money(x.valor)}</span><span class="small muted">estimado</span></span></div>`).join('')}
-        <div class="item total"><span class="meio"><span class="t">Fatura prevista</span></span><span class="r"><span class="num">${money(round2(total + estTotal))}</span></span></div></div>
-      <p class="small muted" style="margin-top:var(--esp-3)">A estimativa diminui conforme as compras são lançadas e some quando a fatura fecha. A forma prevista de cada categoria fica em Categorias.</p>` : ''}
-    ${paga ? aviso('ok', 'check', `Paga em ${fmtDate(f.data_pagamento)}.`) : f.data_fechamento > hoje() ? `<p class="small muted" style="margin-top:var(--esp-3)">A fatura fecha em ${fmtDate(f.data_fechamento)}. O pagamento é confirmado depois disso.</p>` : `<form class="stack secao" data-form="pagar">
+    <div class="card stack" style="margin-bottom:var(--esp-4)">${leituraFatura(f, { cats: est.map(x => x.categoria) })}</div>
+    <h3 class="section-title">Já na fatura <span class="small muted" style="font-weight:600">${itens.length} ${itens.length === 1 ? 'compra' : 'compras'}</span><span class="r num">${money(total)}</span></h3>
+    <p class="small muted" style="margin:-4px 0 var(--esp-3)">Compras de ${fmtDate(inicioFatura(f, c))} a ${fmtDate(addDays(f.data_fechamento, -1))}. Contam no orçamento de ${monthName(f.mes, false)}.</p>
+    <div class="list">${itens.map(l => lancItem(l, { data: true })).join('') || '<p class="apoio">Nenhuma compra lançada ainda.</p>'}</div>
+    ${est.length ? `<h3 class="section-title">Ainda pode entrar <span class="small muted" style="font-weight:600">estimativa</span><span class="r num muted">${money(estTotal)}</span></h3>
+      <p class="small muted" style="margin:-4px 0 var(--esp-3)">O orçado de ${monthName(f.mes, false)} que ainda não foi gasto nas categorias pagas neste cartão. Diminui conforme vocês lançam compras e some quando a fatura fecha.</p>
+      <div class="list">${est.map(x => `<div class="item">${icCategoria(x.categoria)}<span class="meio"><span class="t">${esc(x.categoria.nome)}</span><span class="s">ainda não gasto do orçado</span></span><span class="r"><span class="num muted">${money(x.valor)}</span></span></div>`).join('')}</div>` : ''}
+    ${paga ? '' : aberta ? '' : `<form class="stack secao" data-form="pagar">
       <input type="hidden" name="id" value="${esc(m.id)}">
+      <h3 class="section-title" style="margin:0">Confirmar pagamento</h3>
       ${campoValor('valor', 'Valor cobrado pelo banco', total).replace('</label>', '<span class="hint">Se for diferente do calculado, a diferença vira o item "Ajuste da fatura".</span></label>')}
       <label class="field"><span>Data do pagamento</span><input type="date" name="data" value="${dataPadrao}"><span class="hint">O saldo cai nesta data. Pode ser antes do vencimento.</span></label>
       <button class="btn primary">Confirmar pagamento</button>
@@ -1849,7 +1874,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=36', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=38', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

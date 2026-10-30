@@ -509,3 +509,17 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .grafico .val { color: var(--cor-texto); }
 .grafico .val.neg { color: var(--cor-negativo); }
 .grafico .val, .grafico-h .num { font-style: normal; }
+
+/* ---------- Leitura da fatura: já na fatura + ainda pode entrar = deve fechar ---------- */
+.leitura-fat { display: flex; flex-direction: column; gap: 6px; }
+.leitura-fat .big { font-family: var(--fonte-numero); font-weight: 600; font-size: var(--txt-numero-m); line-height: 1.2; }
+.leitura-fat .bar.fat { height: 10px; margin: 2px 0; }
+.leitura-fat .leg { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); font-size: var(--txt-apoio); }
+.leitura-fat .leg .num { font-size: var(--txt-apoio); }
+.leitura-fat .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--cor-violeta); margin-right: 8px; vertical-align: -1px; }
+.leitura-fat .ponto.prev { background: var(--cor-violeta); opacity: .35; }
+.fat-item { align-items: flex-start; }
+.fat-item .meio { gap: var(--esp-2); }
+.fat-item .leitura-fat .big { font-size: var(--txt-numero-p); }
+.fat-item > svg.ic { margin-top: 2px; color: var(--cor-texto-3); }
+.section-title .small { font-size: var(--txt-legenda); }
