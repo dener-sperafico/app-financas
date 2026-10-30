@@ -24,3 +24,7 @@ O dinheiro da casa, claro e simples. App web instalável (PWA) para lançar gast
 | `sw.js`, `manifest.webmanifest` | Funcionamento offline e instalação |
 
 Não há etapa de build: os arquivos são publicados como estão.
+
+## Licença
+
+Todos os direitos reservados. O código está visível só para consulta; ver [LICENSE](LICENSE). Fontes e ícones de terceiros mantêm as próprias licenças.
