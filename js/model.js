@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=35';
-import { SEED_CATEGORIES } from './schema.js?v=35';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=36';
+import { SEED_CATEGORIES } from './schema.js?v=36';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -353,7 +353,7 @@ export function montar(S, d, hoje = todayISO()) {
   const lancs = datas.map((dt, i) => {
     let fat = null;
     if (card) {
-      fat = (i === 0 && d.fatura_id) ? faturaInfoFromId(S, d.fatura_id) : faturaInfo(card, dt);
+      fat = (i === 0 && d.fatura_id && d.fatura_id.startsWith(`${card.id}_`)) ? faturaInfoFromId(S, d.fatura_id) : faturaInfo(card, dt);
       if (rep === 'parcelada' && i > 0) fat = faturaInfo(card, dt);
     }
     // Parcelas no cartão: a primeira segue a compra; as seguintes ficam previstas até a fatura delas fechar.
@@ -410,7 +410,7 @@ export function salvarEdicao(S, original, d) {
   const card = d.forma === 'cartao' ? cartao(S, d.cartao_id) : null;
   let fat = null;
   if (card) {
-    if (d.fatura_manual && d.fatura_id) fat = faturaInfoFromId(S, d.fatura_id);
+    if (d.fatura_manual && d.fatura_id && d.fatura_id.startsWith(`${card.id}_`)) fat = faturaInfoFromId(S, d.fatura_id);
     else fat = faturaInfo(card, d.data);
   }
   const l = {

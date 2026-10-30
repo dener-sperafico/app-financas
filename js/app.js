@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=35';
-import { MockBackend } from './mock.js?v=35';
-import { Store } from './store.js?v=35';
-import { objToRow } from './schema.js?v=35';
-import * as M from './model.js?v=35';
-import { interpretar, previstoParecido } from './parser.js?v=35';
-import { ic, icCategoria } from './icones.js?v=35';
+import { GoogleBackend, AuthError } from './google.js?v=36';
+import { MockBackend } from './mock.js?v=36';
+import { Store } from './store.js?v=36';
+import { objToRow } from './schema.js?v=36';
+import * as M from './model.js?v=36';
+import { interpretar, previstoParecido } from './parser.js?v=36';
+import { ic, icCategoria } from './icones.js?v=36';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=35';
+} from './util.js?v=36';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1248,7 +1248,8 @@ function readDraft(form, m) {
   if (fd.has('data')) { const nd = String(fd.get('data')); if (nd !== d.data) { d.data = nd; if (!d.fatura_manual) d.fatura_id = ''; } }
   if (fd.has('repeticao')) d.repeticao = String(fd.get('repeticao'));
   if (fd.has('vezes')) d.vezes = fd.get('vezes') ? Number(fd.get('vezes')) : null;
-  if (fd.has('fatura_id') && !d.formaTrocada) {
+  // A fatura escolhida só vale se for do cartão atual (ao trocar de cartão, a do anterior fica para trás).
+  if (fd.has('fatura_id') && !d.formaTrocada && d.forma === 'cartao' && String(fd.get('fatura_id')).startsWith(`${d.cartao_id}_`)) {
     const fid = String(fd.get('fatura_id'));
     const calc = faturaPreview(d);
     d.fatura_id = fid;
@@ -1848,7 +1849,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=35', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=36', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
