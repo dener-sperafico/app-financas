@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=32';
-import { MockBackend } from './mock.js?v=32';
-import { Store } from './store.js?v=32';
-import { objToRow } from './schema.js?v=32';
-import * as M from './model.js?v=32';
-import { interpretar, previstoParecido } from './parser.js?v=32';
-import { ic, icCategoria } from './icones.js?v=32';
+import { GoogleBackend, AuthError } from './google.js?v=33';
+import { MockBackend } from './mock.js?v=33';
+import { Store } from './store.js?v=33';
+import { objToRow } from './schema.js?v=33';
+import * as M from './model.js?v=33';
+import { interpretar, previstoParecido } from './parser.js?v=33';
+import { ic, icCategoria } from './icones.js?v=33';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=32';
+} from './util.js?v=33';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1077,7 +1077,10 @@ function orcadoPanel(m) {
       <p class="small muted">${c.tipo === 'entrada' ? 'Recebido' : 'Realizado'} ${money(x.realizado)} · previsto ${money(x.previsto)}. O orçado não muda o saldo, só a previsão.</p>
       <button class="btn primary" name="modo" value="so">Salvar só em ${monthName(m.mes, false)}</button>
       <button class="btn" name="modo" value="repetir">Salvar e copiar para os próximos 12 meses</button>
-      <p class="small muted">Copiar não muda meses que já tinham um valor ajustado à mão.</p>
+      <p class="small muted">${(() => {
+        const dif = Array.from({ length: 12 }, (_, i) => M.orcado(S, m.cat, addMonthKey(m.mes, i + 1))).filter(v => v !== null && v !== x.orcado).length;
+        return dif ? `Copiar substitui o orçado dos próximos 12 meses. Hoje, ${dif} ${dif === 1 ? 'deles tem' : 'deles têm'} um valor diferente de ${monthName(m.mes, false)}.` : 'Copiar grava o mesmo valor nos próximos 12 meses.';
+      })()}</p>
     </form>`;
 }
 
@@ -1826,7 +1829,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=32', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=33', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

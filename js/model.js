@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=32';
-import { SEED_CATEGORIES } from './schema.js?v=32';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=33';
+import { SEED_CATEGORIES } from './schema.js?v=33';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -114,8 +114,9 @@ export function setOrcado(S, catId, mes, valor, repetir = false) {
   if (repetir) {
     for (let i = 1; i <= 12; i++) {
       const m = addMonthKey(mes, i);
-      const ex = S.find('Orcamento', `${catId}|${m}`);
-      if (!ex || ex.origem !== 'manual') rows.push({ categoria_id: catId, mes: m, valor: round2(valor), origem: 'copiado' });
+      // Copiar substitui os 12 meses seguintes (revisão de 30/10: antes preservava meses ajustados à mão,
+      // mas o orçado importado estava todo marcado assim e a cópia não mudava nada).
+      rows.push({ categoria_id: catId, mes: m, valor: round2(valor), origem: 'copiado' });
     }
   }
   rows.forEach(r => S.upsert('Orcamento', r));
