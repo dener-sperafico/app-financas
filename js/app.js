@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=31';
-import { MockBackend } from './mock.js?v=31';
-import { Store } from './store.js?v=31';
-import { objToRow } from './schema.js?v=31';
-import * as M from './model.js?v=31';
-import { interpretar, previstoParecido } from './parser.js?v=31';
-import { ic, icCategoria } from './icones.js?v=31';
+import { GoogleBackend, AuthError } from './google.js?v=32';
+import { MockBackend } from './mock.js?v=32';
+import { Store } from './store.js?v=32';
+import { objToRow } from './schema.js?v=32';
+import * as M from './model.js?v=32';
+import { interpretar, previstoParecido } from './parser.js?v=32';
+import { ic, icCategoria } from './icones.js?v=32';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=31';
+} from './util.js?v=32';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -94,6 +94,7 @@ function screen(r) {
     case 'mes': return r.arg2 ? scrMesCategoria(r.arg, r.arg2) : scrMes(r.arg || monthOf(hoje()));
     case 'pendentes': return scrPendentes();
     case 'futuro': return scrFuturo();
+    case 'compartilhar': return scrCompartilhar();
     case 'mais': return scrMais();
     case 'cartoes': return scrCartoes();
     case 'cartao': return scrCartao(r.arg);
@@ -104,7 +105,7 @@ function screen(r) {
 }
 
 function nav(r) {
-  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup'].includes(r.name);
+  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup', 'compartilhar'].includes(r.name);
   // No celular, Futuro é aberto pela Início; a aba Início fica marcada.
   const ativo = {
     inicio: r.name === 'inicio' || r.name === 'pendentes' || (r.name === 'futuro' && !DESK()),
@@ -114,7 +115,7 @@ function nav(r) {
     mais: naMais,
     cartoes: ['cartoes', 'cartao'].includes(r.name),
     categorias: r.name === 'categorias',
-    config: ['mais', 'saldo', 'setup'].includes(r.name),
+    config: ['mais', 'saldo', 'setup', 'compartilhar'].includes(r.name),
   };
   const item = (chave, rotulo, href, icone, cls = '') => `<a href="${href}" class="ir ${cls} ${ativo[chave] ? 'on' : ''}" ${ativo[chave] ? 'aria-current="page"' : ''}><span class="pil">${ic(icone)}</span><span>${rotulo}</span></a>`;
   const q = S.queue.length;
@@ -209,7 +210,7 @@ function scrSetup(step) {
           <button class="btn primary" data-act="create-sheet" ${ui.busy ? 'disabled' : ''}>Criar planilha nova</button>
         </div>
         <div class="card stack">
-          <div><h2>Abrir planilha compartilhada comigo</h2><p class="muted small">Para quem vai usar a planilha que o cônjuge criou e compartilhou pelo Google Drive.</p></div>
+          <div><h2>Abrir planilha compartilhada comigo</h2><p class="muted small">Para quem vai usar a planilha que outra pessoa criou e compartilhou pelo Google Drive.</p></div>
           <button class="btn" data-act="pick-sheet" ${ui.busy ? 'disabled' : ''}>Escolher no Google Drive</button>
         </div>
         ${ui.busy ? '<p class="muted">Aguarde…</p>' : ''}
@@ -251,18 +252,8 @@ function scrSetup(step) {
       </form>`;
   }
   // compartilhar
-  return `${steps('compartilhar')}
-    <div class="top"><h1>Usar junto com o cônjuge</h1></div>
-    <div class="stack">
-      <div class="card stack">
-        <div>1. Abra a planilha no Google Drive.</div>
-        <div>2. Clique em <b>Compartilhar</b> e informe o e-mail dele ou dela, com permissão de <b>Editor</b>.</div>
-        <div>3. A pessoa entra no app com a conta Google dela e escolhe <b>Abrir planilha compartilhada comigo</b>.</div>
-        ${sheetLink('Abrir a planilha no Google Drive')}
-      </div>
-      <p class="small muted">Cada lançamento registra quem fez. A pessoa também precisa estar na lista de usuários de teste do Google Cloud.</p>
-      <a class="btn primary" href="#/inicio">Concluir</a>
-    </div>`;
+  return `${steps('compartilhar')}${conteudoCompartilhar()}
+    <a class="btn primary block secao" href="#/inicio">Concluir</a>`
 }
 
 
@@ -727,13 +718,45 @@ function scrMais() {
         ${ir('#/categorias', 'tag', 'Categorias')}
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/setup/orcamento', 'calendar-range', 'Orçar o mês atual')}
-        ${ir('#/setup/compartilhar', 'user-round', 'Usar junto com o cônjuge')}
+        ${ir('#/compartilhar', 'user-round', 'Usar junto com alguém')}
         <button class="item" data-act="tutorial" data-passo="1">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
         <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
         <button class="btn danger" data-act="logout">${ic('log-out')}Sair</button></div>
     </div>`;
+}
+
+// Explicação de como usar a mesma planilha com outra pessoa (primeiro acesso e Mais).
+function conteudoCompartilhar() {
+  const passo = (n, html) => `<li><span class="n">${n}</span><span>${html}</span></li>`;
+  return `<div class="top"><h1>Usar junto com alguém</h1></div>
+    <div class="stack">
+      <p class="apoio">Duas ou mais pessoas podem cuidar do mesmo dinheiro da casa: o casal, quem divide o apartamento, a família.</p>
+      <div class="card stack">
+        <h2>Como funciona</h2>
+        <ul class="passos simples">
+          <li>Vocês usam <b>a mesma planilha</b>. O que um lança, o outro vê: mesmo saldo, mesmo orçamento, mesma previsão.</li>
+          <li>Cada pessoa entra com <b>a própria conta Google</b>, e o Oikon mostra quem lançou cada item.</li>
+          <li>Quem pode ver é decidido no <b>compartilhamento do Google Drive</b>. Para tirar o acesso de alguém, é só remover a pessoa de lá.</li>
+          <li>Quem quiser organizar só o próprio dinheiro, separado, usa o Oikon com uma planilha própria: é só escolher <b>Criar planilha nova</b> no primeiro acesso.</li>
+        </ul>
+      </div>
+      <div class="card stack">
+        <h2>Como fazer</h2>
+        <ol class="passos">
+          ${passo(1, 'Abra a planilha no Google Drive.')}
+          ${passo(2, 'Toque em <b>Compartilhar</b> e informe o e-mail Google da pessoa, com permissão de <b>Editor</b>.')}
+          ${passo(3, 'A pessoa abre o Oikon, entra com a conta Google dela e escolhe <b>Abrir planilha compartilhada comigo</b>.')}
+        </ol>
+        ${sheetLink('Abrir a planilha no Google Drive')}
+      </div>
+      <p class="small muted">Enquanto o Oikon está em fase de teste, o e-mail da pessoa também precisa ser liberado por quem administra o app.</p>
+    </div>`;
+}
+
+function scrCompartilhar() {
+  return `${banners()}<div class="top">${backBtn('#/mais')}</div>${conteudoCompartilhar()}`;
 }
 
 function sheetLink(label) {
@@ -1803,7 +1826,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=31', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=32', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
