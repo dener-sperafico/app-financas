@@ -330,12 +330,6 @@ form { margin: 0; }
 .calc .kv { font-size: var(--txt-apoio); padding: 6px 0; border-bottom: 1px solid var(--cor-borda); }
 .calc .kv .num { font-size: 15px; }
 .calc .kv.total { font-weight: 800; border-bottom: 0; font-size: 15px; }
-table.resumo { width: 100%; border-collapse: collapse; }
-table.resumo th, table.resumo td { padding: 10px 0 10px var(--esp-2); text-align: right; border-bottom: 1px solid var(--cor-borda); font-size: 15px; }
-table.resumo td { font-family: var(--fonte-numero); font-weight: 600; font-variant-numeric: tabular-nums; }
-table.resumo thead th { font-size: var(--txt-legenda); font-weight: 700; color: var(--cor-texto-3); border-bottom-color: var(--cor-borda-forte); padding-top: 0; }
-table.resumo th[scope="row"] { text-align: left; padding-left: 0; font-weight: 700; }
-table.resumo tr:last-child > * { border-bottom: 0; }
 
 /* ---------- Entrar e primeiro acesso ---------- */
 .login { max-width: 420px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: var(--esp-5); padding: var(--esp-6) var(--esp-5); }
@@ -523,3 +517,27 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .fat-item .leitura-fat .big { font-size: var(--txt-numero-p); }
 .fat-item > svg.ic { margin-top: 2px; color: var(--cor-texto-3); }
 .section-title .small { font-size: var(--txt-legenda); }
+
+/* Resumo do mês: sobra em destaque + linhas entradas/saídas/guardar com barra */
+.resumo-mes .rs-grid { display: flex; flex-direction: column; gap: var(--esp-4); }
+.rs-hero { display: flex; flex-direction: column; gap: 2px; }
+.rs-hero .big { font-family: var(--fonte-numero); font-weight: 600; font-size: var(--txt-numero-g); line-height: 1.1; }
+.rs-nota { font-size: var(--txt-apoio); color: var(--cor-texto-2); margin-top: var(--esp-1); }
+.rs-nota b { font-weight: 700; color: var(--cor-texto); }
+.rs-linhas { display: flex; flex-direction: column; border-top: 1px solid var(--cor-borda); }
+.rs-l { display: grid; grid-template-columns: 22px 1fr; column-gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--cor-borda); }
+.rs-l > svg.ic { width: 20px; height: 20px; margin-top: 1px; color: var(--cor-texto-2); }
+.rs-l .sinal { font-family: var(--fonte-numero); color: var(--cor-texto-3); margin-right: 4px; }
+.rs-l .orc-linha .num b { font-weight: 600; }
+.rs-l .orc-linha .de { color: var(--cor-texto-3); font-weight: 400; }
+.rs-l .s { font-size: var(--txt-apoio); color: var(--cor-texto-2); display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.rs-l .s .ok { color: var(--cor-texto); font-weight: 700; }
+.rs-leg { display: flex; gap: 16px; font-size: var(--txt-legenda); color: var(--cor-texto-3); white-space: nowrap; }
+.rs-leg .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--cor-violeta); margin-right: 6px; vertical-align: -1px; }
+.rs-leg .ponto.prev { opacity: .35; }
+#sec-saidas { scroll-margin-top: var(--esp-4); outline: none; }
+@media (min-width: 960px) {
+  .resumo-mes .rs-grid { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: var(--esp-8, 32px); align-items: start; }
+  .resumo-mes .rs-linhas { border-top: 0; }
+  .resumo-mes .rs-l:first-child { padding-top: 0; }
+}

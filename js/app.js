@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=38';
-import { MockBackend } from './mock.js?v=38';
-import { Store } from './store.js?v=38';
-import { objToRow } from './schema.js?v=38';
-import * as M from './model.js?v=38';
-import { interpretar, previstoParecido } from './parser.js?v=38';
-import { ic, icCategoria } from './icones.js?v=38';
+import { GoogleBackend, AuthError } from './google.js?v=39';
+import { MockBackend } from './mock.js?v=39';
+import { Store } from './store.js?v=39';
+import { objToRow } from './schema.js?v=39';
+import * as M from './model.js?v=39';
+import { interpretar, previstoParecido } from './parser.js?v=39';
+import { ic, icCategoria } from './icones.js?v=39';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=38';
+} from './util.js?v=39';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -524,7 +524,7 @@ function scrMes(mes) {
       .sort((a, b) => (b.disponivel < 0) - (a.disponivel < 0) || (b.uso === Infinity ? 9 : b.uso) - (a.uso === Infinity ? 9 : a.uso));
     if (!todas.length) return '';
     const semOrc = vazias.length ? `<p class="small muted" style="margin-top:var(--esp-3)">Sem orçado neste mês: ${vazias.map(x => `<a href="#/mes/${mes}/${esc(x.categoria.id)}">${esc(x.categoria.nome)}</a>`).join(' · ')}</p>` : '';
-    return `<h2 class="section-title">${titulo}</h2>${ls.length ? `<div class="list">${ls.map(x => linhaCategoria(x, mes)).join('')}</div>` : ''}${semOrc}`;
+    return `<h2 class="section-title"${tipo === 'saida' ? ' id="sec-saidas" tabindex="-1"' : ''}>${titulo}</h2>${ls.length ? `<div class="list">${ls.map(x => linhaCategoria(x, mes)).join('')}</div>` : ''}${semOrc}`;
   };
   return `${banners()}
     <div class="top"><h1>Mês</h1></div>
@@ -534,28 +534,43 @@ function scrMes(mes) {
     ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}`;
 }
 
-// Resumo do mês: o que foi planejado, o que já aconteceu e o que ainda está previsto.
+// Resumo do mês: a sobra em destaque e a conta entradas − saídas − guardar, cada uma com barra (já + previsto de orçado).
 function resumoCard(res, mes) {
   const n = v => formatarReais(v).replace(/R\$\s?/, '');
-  const row = (rot, o, r, p) => `<tr><th scope="row">${rot}</th><td>${n(o)}</td><td>${n(r)}</td><td>${n(p)}</td></tr>`;
-  const sa = res.saidas;
-  return `<div class="card stack">
-    <h2>Resumo de ${monthName(mes, false)} <span class="small muted" style="font-weight:400">(R$)</span></h2>
-    <table class="resumo">
-      <thead><tr><th><span class="sr-only">Grupo</span></th><th scope="col">Orçado</th><th scope="col">Realizado</th><th scope="col">Previsto</th></tr></thead>
-      <tbody>
-        ${row('Entradas', res.entradas.orcado, res.entradas.realizado, res.entradas.previsto)}
-        ${row('Saídas', sa.orcado, sa.realizado, sa.previsto)}
-        ${row('Guardado', res.guardadoOrcado, res.guardado, res.guardadoPrevisto)}
-      </tbody>
-    </table>
-    <div class="calc">
-      <div class="kv"><span>Sobra planejada <span class="small muted">(pelo orçado)</span></span><span class="num ${res.sobraOrcada < 0 ? 'neg' : ''}">${money(res.sobraOrcada)}</span></div>
-      <div class="kv"><span>Sobra projetada <span class="small muted">(contando o que passou do orçado)</span></span><span class="num ${res.sobraProjetada < 0 ? 'neg' : ''}">${money(res.sobraProjetada)}</span></div>
-      <div class="kv"><span>Ainda cabe gastar nas saídas</span><span class="num">${money(sa.livre)}</span></div>
-      ${sa.estouradas ? `<div class="kv"><span class="neg">${sa.estouradas} ${sa.estouradas === 1 ? 'categoria passou' : 'categorias passaram'} do orçado</span><span class="num neg">${money(sa.acima)}</span></div>` : ''}
-    </div>
-  </div>`;
+  const sa = res.saidas, en = res.entradas;
+  const sobra = res.sobraProjetada, plano = res.sobraOrcada;
+  const dif = round2(plano - sobra);
+  let nota = '';
+  if (Math.abs(dif) >= 0.01) {
+    const era = plano < 0 ? `O plano já previa faltar <b class="num">${money(-plano)}</b>.` : `O plano era sobrar <b class="num">${money(plano)}</b>.`;
+    const motivo = sa.estouradas ? ` porque ${sa.estouradas === 1 ? '1 categoria passou' : `${sa.estouradas} categorias passaram`} do orçado` : '';
+    nota = `<span class="rs-nota">${era} ${dif > 0 ? `Ficou <b class="num">${money(dif)}</b> menor${motivo}.` : `Ficou <b class="num">${money(-dif)}</b> maior.`}</span>`;
+  }
+  const hero = `<div class="rs-hero"><span class="label">${sobra < 0 ? 'Deve faltar no mês' : 'Sobra do mês'}</span>
+    <span class="big num ${sobra < 0 ? 'neg' : ''}">${money(Math.abs(sobra))}</span>${nota}</div>`;
+  const linha = (icone, sinal, nome, r, p, o, partes, podeEstourar) => {
+    const tot = round2(r + p);
+    return `<div class="rs-l">${ic(icone)}<div>
+      <div class="orc-linha"><span class="t"><span class="sinal" aria-hidden="true">${sinal}</span>${nome}</span><span class="num"><b>${n(tot)}</b>${o ? ` <span class="de">de ${n(o)}</span>` : ''}</span></div>
+      ${barra(r, p, podeEstourar ? o : Math.max(o, tot))}
+      <div class="s">${partes.filter(Boolean).join('')}</div></div></div>`;
+  };
+  const parte = (rot, v, cls = '') => `<span class="${cls}">${rot} ${money(v)}</span>`;
+  const linhas = `<div class="rs-linhas">
+    ${linha('arrow-down-to-line', '+', 'Entradas', en.realizado, en.previsto, en.orcado, [parte('Recebido', en.realizado), en.previsto ? parte('A receber', en.previsto) : ''])}
+    ${linha('wallet', '−', 'Saídas', sa.realizado, sa.previsto, sa.orcado, [parte('Gasto', sa.realizado), sa.previsto ? parte('Previsto', sa.previsto) : '', sa.orcado ? parte('Ainda cabe', sa.livre, 'ok') : ''], true)}
+    ${linha('piggy-bank', '−', 'Guardar', res.guardado, res.guardadoPrevisto, res.guardadoOrcado, [parte('Guardado', res.guardado), res.guardadoPrevisto ? parte('Previsto', res.guardadoPrevisto) : ''])}
+  </div>
+  <div class="rs-leg" aria-hidden="true"><span><span class="ponto"></span>Já aconteceu</span><span><span class="ponto prev"></span>Previsto</span></div>`;
+  let alerta = '';
+  if (sa.estouradas) {
+    const ests = res.linhas.filter(x => x.categoria.tipo === 'saida' && x.orcado !== null && x.disponivel < 0);
+    const txt = ests.length === 1 ? `<b>${esc(ests[0].categoria.nome)}</b> passou do orçado` : `<b>${ests.length} categorias</b> passaram do orçado`;
+    const attrs = ests.length === 1 ? `href="#/mes/${mes}/${esc(ests[0].categoria.id)}"` : `href="#sec-saidas" data-act="rolar" data-alvo="sec-saidas"`;
+    alerta = `<div class="alertas"><a class="alerta est" ${attrs}>${ic('circle-alert')}<span class="txt">${txt}</span><span class="num">${money(sa.acima)}</span>${ic('chevron-right', 'seta')}</a></div>`;
+  }
+  return `<div class="card stack resumo-mes"><h2>Resumo de ${monthName(mes, false)}</h2>
+    <div class="rs-grid"><div class="stack">${hero}${alerta}</div><div class="stack">${linhas}</div></div></div>`;
 }
 
 function scrMesCategoria(mes, catId) {
@@ -1626,6 +1641,7 @@ const actions = {
   },
   composicao() { openModal({ type: 'composicao' }); },
   fora(el) { const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m); m.d.categoria_id = M.FORA; m.d.tipo = 'saida'; m.aberto = null; m.errors = null; renderModal(); },
+  rolar(el) { const a = document.getElementById(el.dataset.alvo); if (a) { a.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); a.focus({ preventScroll: true }); } },
   'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) { alvo.open = true; ui.futuroAbertos?.add(el.dataset.mes); } if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
   tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
   'tutorial-passo'(el) { ui.modal.passo = Number(el.dataset.passo); ui.modal._focar = true; renderModal(); },
@@ -1874,7 +1890,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=38', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=39', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
