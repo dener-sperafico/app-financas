@@ -524,20 +524,15 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .rs-hero .big { font-family: var(--fonte-numero); font-weight: 600; font-size: var(--txt-numero-g); line-height: 1.1; }
 .rs-nota { font-size: var(--txt-apoio); color: var(--cor-texto-2); margin-top: var(--esp-1); }
 .rs-nota b { font-weight: 700; color: var(--cor-texto); }
-.rs-linhas { display: flex; flex-direction: column; border-top: 1px solid var(--cor-borda); }
-.rs-l { display: grid; grid-template-columns: 22px 1fr; column-gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--cor-borda); }
-.rs-l > svg.ic { width: 20px; height: 20px; margin-top: 1px; color: var(--cor-texto-2); }
-.rs-l .sinal { font-family: var(--fonte-numero); color: var(--cor-texto-3); margin-right: 4px; }
-.rs-l .orc-linha .num b { font-weight: 600; }
-.rs-l .orc-linha .de { color: var(--cor-texto-3); font-weight: 400; }
-.rs-l .s { font-size: var(--txt-apoio); color: var(--cor-texto-2); display: flex; flex-wrap: wrap; gap: 2px 12px; }
-.rs-l .s .ok { color: var(--cor-texto); font-weight: 700; }
-.rs-leg { display: flex; gap: 16px; font-size: var(--txt-legenda); color: var(--cor-texto-3); white-space: nowrap; }
-.rs-leg .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--cor-violeta); margin-right: 6px; vertical-align: -1px; }
-.rs-leg .ponto.prev { opacity: .35; }
+.rs-calc { display: flex; flex-direction: column; }
+.rs-k { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); padding: 10px 0; border-bottom: 1px solid var(--cor-borda); }
+.rs-k:first-child { padding-top: 0; }
+.rs-k .t { display: flex; flex-direction: column; font-weight: 700; }
+.rs-k .t .s { font-weight: 400; font-size: var(--txt-apoio); color: var(--cor-texto-2); }
+.rs-k > .num { font-family: var(--fonte-numero); font-weight: 600; white-space: nowrap; }
+.rs-k.total { border-bottom: 0; border-top: 2px solid var(--cor-borda-forte); margin-top: -1px; }
+.rs-k.total.negativo > .num { color: var(--cor-negativo); }
 #sec-saidas { scroll-margin-top: var(--esp-4); outline: none; }
 @media (min-width: 960px) {
   .resumo-mes .rs-grid { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: var(--esp-8, 32px); align-items: start; }
-  .resumo-mes .rs-linhas { border-top: 0; }
-  .resumo-mes .rs-l:first-child { padding-top: 0; }
 }

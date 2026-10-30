@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=39';
-import { MockBackend } from './mock.js?v=39';
-import { Store } from './store.js?v=39';
-import { objToRow } from './schema.js?v=39';
-import * as M from './model.js?v=39';
-import { interpretar, previstoParecido } from './parser.js?v=39';
-import { ic, icCategoria } from './icones.js?v=39';
+import { GoogleBackend, AuthError } from './google.js?v=40';
+import { MockBackend } from './mock.js?v=40';
+import { Store } from './store.js?v=40';
+import { objToRow } from './schema.js?v=40';
+import * as M from './model.js?v=40';
+import { interpretar, previstoParecido } from './parser.js?v=40';
+import { ic, icCategoria } from './icones.js?v=40';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=39';
+} from './util.js?v=40';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -534,34 +534,12 @@ function scrMes(mes) {
     ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}`;
 }
 
-// Resumo do mês: a sobra em destaque e a conta entradas − saídas − guardar, cada uma com barra (já + previsto de orçado).
+// Resumo do mês como ponte de dinheiro: começou com + entradas − saídas − guardar = fim do mês.
+// O fim é o mesmo número da tela inicial (mês atual) e do Futuro (meses seguintes).
 function resumoCard(res, mes) {
-  const n = v => formatarReais(v).replace(/R\$\s?/, '');
+  const f = M.fechamentoDoMes(S, mes);
   const sa = res.saidas, en = res.entradas;
-  const sobra = res.sobraProjetada, plano = res.sobraOrcada;
-  const dif = round2(plano - sobra);
-  let nota = '';
-  if (Math.abs(dif) >= 0.01) {
-    const era = plano < 0 ? `O plano já previa faltar <b class="num">${money(-plano)}</b>.` : `O plano era sobrar <b class="num">${money(plano)}</b>.`;
-    const motivo = sa.estouradas ? ` porque ${sa.estouradas === 1 ? '1 categoria passou' : `${sa.estouradas} categorias passaram`} do orçado` : '';
-    nota = `<span class="rs-nota">${era} ${dif > 0 ? `Ficou <b class="num">${money(dif)}</b> menor${motivo}.` : `Ficou <b class="num">${money(-dif)}</b> maior.`}</span>`;
-  }
-  const hero = `<div class="rs-hero"><span class="label">${sobra < 0 ? 'Deve faltar no mês' : 'Sobra do mês'}</span>
-    <span class="big num ${sobra < 0 ? 'neg' : ''}">${money(Math.abs(sobra))}</span>${nota}</div>`;
-  const linha = (icone, sinal, nome, r, p, o, partes, podeEstourar) => {
-    const tot = round2(r + p);
-    return `<div class="rs-l">${ic(icone)}<div>
-      <div class="orc-linha"><span class="t"><span class="sinal" aria-hidden="true">${sinal}</span>${nome}</span><span class="num"><b>${n(tot)}</b>${o ? ` <span class="de">de ${n(o)}</span>` : ''}</span></div>
-      ${barra(r, p, podeEstourar ? o : Math.max(o, tot))}
-      <div class="s">${partes.filter(Boolean).join('')}</div></div></div>`;
-  };
-  const parte = (rot, v, cls = '') => `<span class="${cls}">${rot} ${money(v)}</span>`;
-  const linhas = `<div class="rs-linhas">
-    ${linha('arrow-down-to-line', '+', 'Entradas', en.realizado, en.previsto, en.orcado, [parte('Recebido', en.realizado), en.previsto ? parte('A receber', en.previsto) : ''])}
-    ${linha('wallet', '−', 'Saídas', sa.realizado, sa.previsto, sa.orcado, [parte('Gasto', sa.realizado), sa.previsto ? parte('Previsto', sa.previsto) : '', sa.orcado ? parte('Ainda cabe', sa.livre, 'ok') : ''], true)}
-    ${linha('piggy-bank', '−', 'Guardar', res.guardado, res.guardadoPrevisto, res.guardadoOrcado, [parte('Guardado', res.guardado), res.guardadoPrevisto ? parte('Previsto', res.guardadoPrevisto) : ''])}
-  </div>
-  <div class="rs-leg" aria-hidden="true"><span><span class="ponto"></span>Já aconteceu</span><span><span class="ponto prev"></span>Previsto</span></div>`;
+  const nomeMes = monthName(mes, false);
   let alerta = '';
   if (sa.estouradas) {
     const ests = res.linhas.filter(x => x.categoria.tipo === 'saida' && x.orcado !== null && x.disponivel < 0);
@@ -569,8 +547,34 @@ function resumoCard(res, mes) {
     const attrs = ests.length === 1 ? `href="#/mes/${mes}/${esc(ests[0].categoria.id)}"` : `href="#sec-saidas" data-act="rolar" data-alvo="sec-saidas"`;
     alerta = `<div class="alertas"><a class="alerta est" ${attrs}>${ic('circle-alert')}<span class="txt">${txt}</span><span class="num">${money(sa.acima)}</span>${ic('chevron-right', 'seta')}</a></div>`;
   }
-  return `<div class="card stack resumo-mes"><h2>Resumo de ${monthName(mes, false)}</h2>
-    <div class="rs-grid"><div class="stack">${hero}${alerta}</div><div class="stack">${linhas}</div></div></div>`;
+  if (!f) return `<div class="card stack resumo-mes"><h2>Resumo de ${nomeMes}</h2>${alerta}</div>`;
+  const neg = f.fim < 0;
+  const rot = f.quando === 'passado' ? `${cap(nomeMes)} terminou com` : `No fim de ${nomeMes}, deve ${neg ? 'faltar' : 'sobrar'}`;
+  const valor = f.quando === 'passado' ? formatarReais(f.fim, { inteiro: true }) : formatarReais(Math.abs(f.fim), { inteiro: true });
+  const resultado = round2(f.entradas - f.saidas - f.guardar);
+  const verbo = f.quando === 'passado' ? ['saiu', 'entrou'] : ['sai', 'entra'];
+  let nota = '';
+  if (resultado < -0.005) nota = `Em ${nomeMes} ${verbo[0]} <b class="num">${money(-resultado)}</b> a mais do que ${verbo[1]}. ${f.inicio > 0 ? (f.fim >= 0 ? 'O saldo do começo do mês cobre a diferença.' : 'O saldo do começo do mês cobre só uma parte.') : ''}`;
+  else if (resultado > 0.005) nota = `Em ${nomeMes} ${verbo[1]} <b class="num">${money(resultado)}</b> a mais do que ${verbo[0]}.`;
+  const futuro = f.quando !== 'passado';
+  const sub = (...ps) => `<span class="s">${ps.filter(Boolean).join(' · ')}</span>`;
+  const orcLivre = (proj, g) => round2(proj - g.realizado - g.previsto);
+  const enLivre = futuro ? orcLivre(f.entradas, en) : 0;
+  const gLivre = futuro ? orcLivre(f.guardar, { realizado: res.guardado, previsto: res.guardadoPrevisto }) : 0;
+  const linha = (sinal, nome, v, s2, cls = '') => `<div class="rs-k ${cls}"><span class="t">${nome}${s2 || ''}</span><span class="num">${sinal === '+' || sinal === '−' ? `${sinal} ` : ''}${sinal === '=' ? formatarReais(v) : money(v)}</span></div>`;
+  const calc = `<div class="rs-calc">
+    ${linha('', `Saldo no começo de ${nomeMes}`, f.inicio)}
+    ${linha('+', 'Entradas', f.entradas, sub(en.realizado ? `${money(en.realizado)} ${futuro ? 'já recebido' : 'recebido'}` : '', en.previsto ? `${money(en.previsto)} a receber` : '', enLivre > 0.005 ? `${money(enLivre)} orçado sem lançamento` : ''))}
+    ${linha('−', 'Saídas', f.saidas, sub(sa.realizado ? `${money(sa.realizado)} gasto` : '', sa.previsto ? `${money(sa.previsto)} previsto` : '', futuro && sa.livre > 0.005 ? `${money(sa.livre)} que ainda cabe no orçado` : ''))}
+    ${f.guardar ? linha('−', 'Guardar', f.guardar, sub(res.guardado ? `${money(res.guardado)} guardado` : '', res.guardadoPrevisto ? `${money(res.guardadoPrevisto)} previsto` : '', gLivre > 0.005 ? `${money(gLivre)} orçado sem lançamento` : '')) : ''}
+    ${Math.abs(f.outros) >= 0.01 ? linha(f.outros > 0 ? '+' : '−', 'Outros movimentos', Math.abs(f.outros), sub('ajustes de saldo e faturas que não foram pagas no mês em que venceram')) : ''}
+    ${linha('=', f.quando === 'passado' ? 'Fim do mês' : 'Fim do mês, previsto', f.fim, '', `total ${neg ? 'negativo' : ''}`)}
+  </div>`;
+  return `<div class="card stack resumo-mes"><h2>Resumo de ${nomeMes}</h2>
+    <div class="rs-grid"><div class="stack">
+      <div class="rs-hero"><span class="label">${rot}</span><span class="big num ${neg ? 'neg' : ''}">${valor}</span>${nota ? `<span class="rs-nota">${nota}</span>` : ''}</div>
+      ${alerta}</div>
+    <div class="stack">${calc}${futuro ? `<p class="small muted">Conta que todo o orçado ainda livre vai ser gasto, como na tela inicial.</p>` : ''}</div></div></div>`;
 }
 
 function scrMesCategoria(mes, catId) {
@@ -1890,7 +1894,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=39', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=40', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

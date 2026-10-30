@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=39';
-import { SEED_CATEGORIES } from './schema.js?v=39';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=40';
+import { SEED_CATEGORIES } from './schema.js?v=40';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -247,6 +247,47 @@ export function fechamentoDetalhe(S, hoje = todayISO()) {
   });
   receber = round2(receber); pagar = round2(pagar); faturas = round2(faturas); reservado = round2(reservado);
   return { mes, fim, saldo, receber, pagar, faturas, reservado, total: round2(saldo + receber - pagar - faturas - reservado) };
+}
+
+// Saldo na conta no fim de um dia já passado (ou hoje): parte do saldo atual e desfaz o que veio depois.
+export function saldoEm(S, data) {
+  const desde = cfg(S, 'data_saldo_inicial') || '0000-00-00';
+  let s = saldoAtual(S);
+  S.get('Lancamentos').forEach(l => {
+    if (l.situacao === 'confirmado' && l.forma !== 'cartao' && l.data >= desde && l.data > data) s -= sign(l) * l.valor;
+  });
+  S.get('Faturas').forEach(f => {
+    if (f.situacao === 'paga' && f.data_pagamento >= desde && f.data_pagamento > data) s += faturaTotal(S, f.id);
+  });
+  return round2(s);
+}
+
+// Ponte do mês, em dinheiro na conta: começou com + entradas − saídas − guardar (+ outros) = fim do mês.
+// O fim é o mesmo número da tela inicial (mês atual), do Futuro (meses seguintes) ou o saldo real (meses passados).
+export function fechamentoDoMes(S, mes, hoje = todayISO()) {
+  const atual = monthOf(hoje);
+  const ini = `${mes}-01`, fimMes = lastDayOfMonth(mes);
+  const vespera = addDays(ini, -1);
+  const res = resumoMes(S, mes);
+  const quando = mes < atual ? 'passado' : mes === atual ? 'atual' : 'futuro';
+  let inicio, fim;
+  if (quando === 'futuro') {
+    const n = (Number(mes.slice(0, 4)) - Number(atual.slice(0, 4))) * 12 + Number(mes.slice(5)) - Number(atual.slice(5));
+    const p = projecaoDiaria(S, hoje, n);
+    const dia = d => p.dias.find(x => x.data === d)?.saldo;
+    inicio = dia(vespera); fim = dia(fimMes);
+    if (inicio === undefined || fim === undefined) return null;
+  } else {
+    inicio = saldoEm(S, vespera);
+    fim = quando === 'atual' ? fechamentoDetalhe(S, hoje).total : saldoEm(S, fimMes);
+  }
+  // Mês passado: só o que aconteceu. Mês atual e futuros: o maior entre orçado e lançado, como na tela inicial.
+  const val = (g, proj) => quando === 'passado' ? round2(g.realizado + g.previsto) : proj;
+  const entradas = val(res.entradas, res.entradas.projecao);
+  const saidas = val(res.saidas, res.saidas.projecao);
+  const guardar = val({ realizado: res.guardado, previsto: res.guardadoPrevisto }, res.guardadoProjecao);
+  const outros = round2(fim - (inicio + entradas - saidas - guardar));
+  return { quando, inicio, entradas, saidas, guardar, outros, fim, res };
 }
 
 // ---------- Futuro: saldo estimado dia a dia ----------
