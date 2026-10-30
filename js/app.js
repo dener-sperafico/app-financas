@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=33';
-import { MockBackend } from './mock.js?v=33';
-import { Store } from './store.js?v=33';
-import { objToRow } from './schema.js?v=33';
-import * as M from './model.js?v=33';
-import { interpretar, previstoParecido } from './parser.js?v=33';
-import { ic, icCategoria } from './icones.js?v=33';
+import { GoogleBackend, AuthError } from './google.js?v=35';
+import { MockBackend } from './mock.js?v=35';
+import { Store } from './store.js?v=35';
+import { objToRow } from './schema.js?v=35';
+import * as M from './model.js?v=35';
+import { interpretar, previstoParecido } from './parser.js?v=35';
+import { ic, icCategoria } from './icones.js?v=35';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=33';
+} from './util.js?v=35';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -270,7 +270,8 @@ function orcamentoInputs(mes) {
 }
 
 async function loadFound() {
-  if (!B.hasToken()) { ui.found = []; return; }
+  if (!B.hasToken()) { ui.found = []; ui.foundSemConexao = true; return; }
+  ui.foundSemConexao = false;
   ui.found = [];
   try { ui.found = await B.findSpreadsheets(); } catch (e) { handleError(e); }
   ui.forceRender = true; render();
@@ -1509,9 +1510,26 @@ async function sync() {
   } catch (e) { handleError(e); }
 }
 
+// Antes de falar com o Google a partir de um toque: se a conexão venceu, renova na hora
+// (o toque permite abrir a janela do Google). Usado no primeiro acesso, onde a pessoa pode ter parado no meio.
+function garantirConexao() {
+  if (B.hasToken()) return Promise.resolve();
+  return B.signIn(S.user?.email).then(() => { S.status.authNeeded = false; auth.falhou = false; });
+}
+
+// Mensagem em português para erros vindos do Google.
+function erroAmigavel(e) {
+  if (e instanceof AuthError) return e.message === 'popup_failed_to_open' || e.message === 'popup'
+    ? 'O navegador bloqueou a janela do Google. Permita pop-ups para este site e toque de novo.'
+    : 'A conexão com o Google não foi concluída. Toque de novo para tentar.';
+  if (e instanceof TypeError) return 'Sem internet no momento. Confira a conexão e toque de novo.';
+  return e.message || 'erro desconhecido';
+}
+
 async function abrirPlanilha(sp) {
   ui.busy = true; ui.msg = null; ui.forceRender = true; render();
   try {
+    await garantirConexao();
     const info = await B.fileInfo(sp.id);
     if (info.trashed) throw Object.assign(new Error('notfound'), { status: 404 });
     if (info.capabilities && info.capabilities.canEdit === false) {
@@ -1526,7 +1544,7 @@ async function abrirPlanilha(sp) {
     go(temDados ? '#/inicio' : '#/setup/saldo');
   } catch (e) {
     S.setSpreadsheet(null);
-    ui.msg = e.status === 404 ? 'Planilha não encontrada.' : e.status === 403 ? 'Sem permissão para esta planilha.' : `Não foi possível abrir: ${e.message}`;
+    ui.msg = e.status === 404 ? 'Planilha não encontrada.' : e.status === 403 ? 'Sem permissão para esta planilha.' : `Não foi possível abrir a planilha. ${erroAmigavel(e)}`;
   } finally { ui.busy = false; ui.forceRender = true; render(); }
 }
 
@@ -1556,17 +1574,18 @@ const actions = {
   async 'create-sheet'() {
     ui.busy = true; ui.msg = null; render();
     try {
+      await garantirConexao();
       const seeds = M.seedRows(objToRow, S.user);
       const sp = await B.createSpreadsheet(seeds);
       S.setSpreadsheet(sp);
       await S.pull();
       go('#/setup/saldo');
-    } catch (e) { ui.msg = `Não foi possível criar a planilha: ${e.message}`; }
+    } catch (e) { ui.msg = `Não foi possível criar a planilha. ${erroAmigavel(e)}`; }
     finally { ui.busy = false; ui.forceRender = true; render(); }
   },
   async 'pick-sheet'() {
-    try { const sp = await B.pickSpreadsheet(); if (sp) await abrirPlanilha(sp); }
-    catch (e) { ui.msg = `Não foi possível abrir o seletor: ${e.message}`; ui.forceRender = true; render(); }
+    try { await garantirConexao(); const sp = await B.pickSpreadsheet(); if (sp) await abrirPlanilha(sp); }
+    catch (e) { ui.msg = `Não foi possível abrir o Google Drive. ${erroAmigavel(e)}`; ui.forceRender = true; render(); }
   },
   'open-sheet'(el) { abrirPlanilha({ id: el.dataset.id, name: el.dataset.name }); },
   'notice-ok'(el) { S.notices = S.notices.filter(n => String(n.id) !== el.dataset.id); render(); },
@@ -1829,7 +1848,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=33', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=35', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

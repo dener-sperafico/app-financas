@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=33';
-import { SEED_CATEGORIES } from './schema.js?v=33';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=35';
+import { SEED_CATEGORIES } from './schema.js?v=35';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.

@@ -1,6 +1,6 @@
 // Modo demonstração: imita o Google guardando a "planilha" no próprio navegador.
 // Abra o app com ?demo=1 para usar. Nada é enviado para o Google.
-import { SHEETS } from './schema.js?v=33';
+import { SHEETS } from './schema.js?v=35';
 
 const KEY = 'af_mock_db';
 
@@ -22,6 +22,7 @@ export class MockBackend {
   async getUser() { return { email: 'demo@exemplo.com', name: 'Demo' }; }
 
   async createSpreadsheet(seeds) {
+    if (!this.signed) { const e = new Error('expired'); e.name = 'AuthError'; throw e; }
     await this._lag();
     const id = 'demo_' + Date.now().toString(36);
     const sheets = {};
