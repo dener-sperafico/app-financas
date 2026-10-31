@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=40';
-import { MockBackend } from './mock.js?v=40';
-import { Store } from './store.js?v=40';
-import { objToRow } from './schema.js?v=40';
-import * as M from './model.js?v=40';
-import { interpretar, previstoParecido } from './parser.js?v=40';
-import { ic, icCategoria } from './icones.js?v=40';
+import { GoogleBackend, AuthError } from './google.js?v=41';
+import { MockBackend } from './mock.js?v=41';
+import { Store } from './store.js?v=41';
+import { objToRow } from './schema.js?v=41';
+import * as M from './model.js?v=41';
+import { interpretar, previstoParecido } from './parser.js?v=41';
+import { ic, icCategoria } from './icones.js?v=41';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=40';
+} from './util.js?v=41';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -553,9 +553,11 @@ function resumoCard(res, mes) {
   const valor = f.quando === 'passado' ? formatarReais(f.fim, { inteiro: true }) : formatarReais(Math.abs(f.fim), { inteiro: true });
   const resultado = round2(f.entradas - f.saidas - f.guardar);
   const verbo = f.quando === 'passado' ? ['saiu', 'entrou'] : ['sai', 'entra'];
+  // Resultado do mês (entradas − saídas − guardar): verde quando entra mais do que sai, vermelho quando sai mais.
   let nota = '';
-  if (resultado < -0.005) nota = `Em ${nomeMes} ${verbo[0]} <b class="num">${money(-resultado)}</b> a mais do que ${verbo[1]}. ${f.inicio > 0 ? (f.fim >= 0 ? 'O saldo do começo do mês cobre a diferença.' : 'O saldo do começo do mês cobre só uma parte.') : ''}`;
-  else if (resultado > 0.005) nota = `Em ${nomeMes} ${verbo[1]} <b class="num">${money(resultado)}</b> a mais do que ${verbo[0]}.`;
+  if (resultado < -0.005) nota = `<span class="rs-result neg">${ic('trending-down')}<span>Em ${nomeMes} ${verbo[0]} <b class="num">${money(-resultado)}</b> a mais do que ${verbo[1]}.</span></span>${f.inicio > 0 ? `<span class="rs-nota">${f.fim >= 0 ? 'O saldo do começo do mês cobre a diferença.' : 'O saldo do começo do mês cobre só uma parte.'}</span>` : ''}`;
+  else if (resultado > 0.005) nota = `<span class="rs-result pos">${ic('trending-up')}<span>Em ${nomeMes} ${verbo[1]} <b class="num">${money(resultado)}</b> a mais do que ${verbo[0]}.</span></span>`;
+  else nota = `<span class="rs-result">${ic('circle-dot')}<span>Em ${nomeMes} entra o mesmo que sai.</span></span>`;
   const futuro = f.quando !== 'passado';
   const sub = (...ps) => `<span class="s">${ps.filter(Boolean).join(' · ')}</span>`;
   const orcLivre = (proj, g) => round2(proj - g.realizado - g.previsto);
@@ -567,12 +569,12 @@ function resumoCard(res, mes) {
     ${linha('+', 'Entradas', f.entradas, sub(en.realizado ? `${money(en.realizado)} ${futuro ? 'já recebido' : 'recebido'}` : '', en.previsto ? `${money(en.previsto)} a receber` : '', enLivre > 0.005 ? `${money(enLivre)} orçado sem lançamento` : ''))}
     ${linha('−', 'Saídas', f.saidas, sub(sa.realizado ? `${money(sa.realizado)} gasto` : '', sa.previsto ? `${money(sa.previsto)} previsto` : '', futuro && sa.livre > 0.005 ? `${money(sa.livre)} que ainda cabe no orçado` : ''))}
     ${f.guardar ? linha('−', 'Guardar', f.guardar, sub(res.guardado ? `${money(res.guardado)} guardado` : '', res.guardadoPrevisto ? `${money(res.guardadoPrevisto)} previsto` : '', gLivre > 0.005 ? `${money(gLivre)} orçado sem lançamento` : '')) : ''}
-    ${Math.abs(f.outros) >= 0.01 ? linha(f.outros > 0 ? '+' : '−', 'Outros movimentos', Math.abs(f.outros), sub('ajustes de saldo e faturas que não foram pagas no mês em que venceram')) : ''}
+    ${Math.abs(f.outros) >= 0.01 ? linha(f.outros > 0 ? '+' : '−', 'Outros movimentos', Math.abs(f.outros), sub('mexem no saldo, mas contam no orçado de outro mês')) : ''}
     ${linha('=', f.quando === 'passado' ? 'Fim do mês' : 'Fim do mês, previsto', f.fim, '', `total ${neg ? 'negativo' : ''}`)}
   </div>`;
   return `<div class="card stack resumo-mes"><h2>Resumo de ${nomeMes}</h2>
     <div class="rs-grid"><div class="stack">
-      <div class="rs-hero"><span class="label">${rot}</span><span class="big num ${neg ? 'neg' : ''}">${valor}</span>${nota ? `<span class="rs-nota">${nota}</span>` : ''}</div>
+      <div class="rs-hero"><span class="label">${rot}</span><span class="big num ${neg ? 'neg' : ''}">${valor}</span></div>${nota}
       ${alerta}</div>
     <div class="stack">${calc}${futuro ? `<p class="small muted">Conta que todo o orçado ainda livre vai ser gasto, como na tela inicial.</p>` : ''}</div></div></div>`;
 }
@@ -922,6 +924,8 @@ function formaPrevistaNome(c) {
 // ---------- Painéis (lançamento, edição, orçado, fatura, categoria) ----------
 function openModal(m) { ui.modal = m; renderModal(); }
 function closeModal() { ui.modal = null; renderModal(); }
+// Fechar sem salvar: se o painel foi aberto a partir de um novo lançamento, volta para ele.
+function fecharPainel() { const v = ui.modal?.voltar; if (v) openModal(v); else closeModal(); }
 
 function renderModal() {
   const m = ui.modal;
@@ -961,7 +965,7 @@ function interpretacao(m) {
   const precisaCartao = d.forma === 'cartao' && !d.cartao_id;
   const fprev = faturaPreview(d);
   const mes = mesDoDraft(d);
-  const needOrc = M.precisaOrcado(S, d.categoria_id, mes) && !(m.dup && d.dup === 'confirmar');
+  const needOrc = M.precisaOrcado(S, d.categoria_id, mes);
   const aberto = m.aberto !== undefined ? m.aberto
     : !(d.valor > 0) ? 'valor' : !d.categoria_id ? 'categoria' : precisaCartao ? 'forma' : null;
   const fatId = d.fatura_id || (fprev && fprev.id) || '';
@@ -1034,14 +1038,19 @@ function interpretacao(m) {
       ${needOrc ? `<div class="card alert stack"><b>${esc(cat?.nome || '')} não tem valor orçado em ${monthName(mes, false)}. Quer definir agora?</b>
         <span class="small">Todo gasto precisa de orçado na categoria. O orçado não muda o saldo, só a previsão.</span>
         ${campoValor('orcado_valor', `Orçado de ${monthName(mes, false)}`, d.orcado_valor, false, e.orcado ? 'err' : '')}${e.orcado ? `<span class="error" role="alert">${e.orcado}</span>` : ''}</div>` : ''}
-      ${m.dup ? `<div class="card info stack"><b>Já existe "${esc(m.dup.descricao)}" previsto para ${fmtDate(m.dup.data)} (${money(m.dup.valor)})</b>
-        <label class="check"><input type="radio" name="dup" value="confirmar" ${d.dup !== 'novo' ? 'checked' : ''} data-change> Confirmar o previsto com estes dados</label>
-        <label class="check"><input type="radio" name="dup" value="novo" ${d.dup === 'novo' ? 'checked' : ''} data-change> Criar um lançamento novo</label></div>` : ''}
+      ${avisoPrevisto(m)}
       <div class="btns col">
         <button class="btn primary block" name="acao" value="salvar">Confirmar</button>
         <button type="button" class="btn link" data-act="close">Cancelar</button>
       </div>
     </form>`;
+}
+
+// Previsto parecido com o novo lançamento: só avisa e oferece abrir o previsto (não confirma nada sozinho).
+function avisoPrevisto(m) {
+  if (m.type !== 'novo' || !m.dup) return '';
+  const p = m.dup;
+  return `<div class="alertas"><button type="button" class="alerta" data-act="abrir-previsto">${ic('clock')}<span class="txt">Já existe <b>${esc(p.descricao)}</b> previsto para ${fmtDate(p.data)}. É o mesmo? Abra para confirmar.</span><span class="num">${money(p.valor)}</span>${ic('chevron-right', 'seta')}</button></div>`;
 }
 
 // Retorno da categoria antes de salvar (R9, R10): como ela fica com este lançamento.
@@ -1066,18 +1075,16 @@ function salvarDraft(m, acao) {
   if (d.categoria_id === M.FORA) M.garantirFora(S);
   if (!d.descricao) d.descricao = M.categoria(S, d.categoria_id)?.nome || 'Lançamento';
   const mes = mesDoDraft(d);
-  if (M.precisaOrcado(S, d.categoria_id, mes) && !(m.dup && d.dup === 'confirmar')) M.setOrcado(S, d.categoria_id, mes, parseMoney(d.orcado_valor), false);
+  if (M.precisaOrcado(S, d.categoria_id, mes)) M.setOrcado(S, d.categoria_id, mes, parseMoney(d.orcado_valor), false);
   let salvo;
   if (m.type === 'editar') {
     const situacao = acao === 'confirmar' ? 'confirmado' : acao === 'manter' ? 'previsto' : m.orig.situacao;
     salvo = M.salvarEdicao(S, m.orig, { ...d, situacao });
-  } else if (m.dup && d.dup !== 'novo') {
-    salvo = M.salvarEdicao(S, m.dup, { ...m.dup, valor: d.valor, data: d.data, descricao: m.dup.descricao, situacao: 'confirmado', fatura_manual: m.dup.fatura_manual, fatura_id: m.dup.fatura_id });
   } else {
     salvo = M.salvarNovo(S, d)[0];
   }
   closeModal();
-  if (m.type === 'novo') { const i = $('#cmp'); if (i) { i.value = ''; i.form.querySelector('button').disabled = true; } }
+  if (m.type === 'novo' || m.voltar) { const i = $('#cmp'); if (i) { i.value = ''; i.form.querySelector('button').disabled = true; } }
   toast(m.type === 'editar' ? 'Alterações salvas.' : textoAnotado(salvo, d));
 }
 
@@ -1205,7 +1212,7 @@ function draftForm(m) {
   const precisaCartao = d.forma === 'cartao' && !d.cartao_id;
   const fprev = faturaPreview(d);
   const mes = mesDoDraft(d);
-  const needOrc = M.precisaOrcado(S, d.categoria_id, mes) && !(m.dup && d.dup === 'confirmar');
+  const needOrc = M.precisaOrcado(S, d.categoria_id, mes);
   const cat = M.categoria(S, d.categoria_id);
   const e = m.errors || {};
   let fatOpts = '';
@@ -1248,9 +1255,7 @@ function draftForm(m) {
       ${needOrc ? `<div class="card alert stack"><b>${esc(cat?.nome || '')} não tem orçado em ${monthName(mes)}</b>
         <span class="small">Todo gasto precisa de orçado na categoria. Quanto planejam para ela neste mês? O orçado não muda o saldo atual, só a previsão.</span>
         <label class="field ${e.orcado ? 'err' : ''}"><span>Orçado de ${monthName(mes)}</span><input name="orcado_valor" inputmode="decimal" placeholder="0,00" value="${esc(d.orcado_valor || '')}">${e.orcado ? `<span class="error">${e.orcado}</span>` : ''}</label></div>` : ''}
-      ${m.dup ? `<div class="card alert stack"><b>Já existe "${esc(m.dup.descricao)}" previsto para ${fmtDate(m.dup.data)} (${money(m.dup.valor)})</b>
-        <label class="check"><input type="radio" name="dup" value="confirmar" ${d.dup !== 'novo' ? 'checked' : ''} data-change> Confirmar o previsto com estes dados</label>
-        <label class="check"><input type="radio" name="dup" value="novo" ${d.dup === 'novo' ? 'checked' : ''} data-change> Criar um lançamento novo</label></div>` : ''}
+      ${avisoPrevisto(m)}
       <div class="btns" style="flex-direction:column">
         ${isEdit ? (situacaoPrev
           ? `<button class="btn primary" name="acao" value="confirmar">Salvar e confirmar</button><button class="btn" name="acao" value="manter">Salvar e manter como previsto</button>`
@@ -1300,7 +1305,6 @@ function readDraft(form, m) {
     d.fatura_manual = !!(calc && fid !== calc.id);
   }
   if (fd.has('orcado_valor')) d.orcado_valor = String(fd.get('orcado_valor'));
-  if (fd.has('dup')) d.dup = String(fd.get('dup'));
   d.formaTrocada = false;
   return d;
 }
@@ -1312,7 +1316,7 @@ function validar(m) {
   if (d.forma === 'cartao' && !d.cartao_id) e.forma = 'Escolha o cartão.';
   if (m.type === 'novo' && d.repeticao === 'parcelada' && !(d.vezes >= 2)) e.vezes = 'Informe 2 ou mais parcelas.';
   const mes = mesDoDraft(d);
-  if (d.categoria_id && M.precisaOrcado(S, d.categoria_id, mes) && !(m.dup && d.dup === 'confirmar')) {
+  if (d.categoria_id && M.precisaOrcado(S, d.categoria_id, mes)) {
     const v = parseMoney(d.orcado_valor);
     if (v === null || v < 0) e.orcado = 'Informe o orçado do mês.';
   }
@@ -1505,7 +1509,7 @@ function tutorialPanel(m) {
 // ---------- Ações ----------
 function novoDraft(texto) {
   const r = interpretar(S, texto);
-  const d = { ...r, fatura_id: '', fatura_manual: false, orcado_valor: '', dup: 'confirmar' };
+  const d = { ...r, fatura_id: '', fatura_manual: false, orcado_valor: '' };
   const dup = previstoParecido(S, d);
   openModal({ type: 'novo', d, dup });
 }
@@ -1664,9 +1668,10 @@ const actions = {
   },
   orcado(el) { openModal({ type: 'orcado', cat: el.dataset.cat, mes: el.dataset.mes }); },
   categoria(el) { openModal({ type: 'categoria', id: el.dataset.id }); },
-  close() { closeModal(); },
+  close() { fecharPainel(); },
+  'abrir-previsto'() { const novo = ui.modal; if (!novo?.dup) return; editarLanc(novo.dup.id); if (ui.modal?.type === 'editar') { ui.modal.voltar = novo; renderModal(); } },
   'close-nav'() { closeModal(); },
-  'modal-bg'(el, ev) { if (ev.target === el) { if (ui.modal?.type === 'tutorial') marcarTutorial(); closeModal(); } },
+  'modal-bg'(el, ev) { if (ev.target === el) { if (ui.modal?.type === 'tutorial') marcarTutorial(); fecharPainel(); } },
   logout() {
     const q = S.queue.length;
     openModal({
@@ -1711,7 +1716,7 @@ document.addEventListener('toggle', ev => {
 
 // Teclado: Esc fecha o painel; "/" ou "n" leva ao campo de lançamento (8.2, 8.12).
 document.addEventListener('keydown', ev => {
-  if (ev.key === 'Escape' && ui.modal) { ev.preventDefault(); if (ui.modal.type === 'tutorial') marcarTutorial(); closeModal(); return; }
+  if (ev.key === 'Escape' && ui.modal) { ev.preventDefault(); if (ui.modal.type === 'tutorial') marcarTutorial(); fecharPainel(); return; }
   const t = ev.target;
   const digitando = t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
   if (!digitando && !ui.modal && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (ev.key === '/' || ev.key === 'n' || ev.key === 'N')) {
@@ -1894,7 +1899,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=40', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=41', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

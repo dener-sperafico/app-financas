@@ -536,3 +536,11 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 @media (min-width: 960px) {
   .resumo-mes .rs-grid { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: var(--esp-8, 32px); align-items: start; }
 }
+.rs-result { display: flex; align-items: flex-start; gap: var(--esp-2); padding: var(--esp-2) var(--esp-3); border-radius: var(--raio-m); background: var(--cor-lavanda-leve); color: var(--cor-texto); font-size: var(--txt-apoio); }
+.rs-result > svg.ic { width: 20px; height: 20px; flex: none; }
+.rs-result b { font-weight: 700; }
+.rs-result.pos { background: var(--cor-positivo-fundo); color: var(--cor-positivo); }
+.rs-result.neg { background: var(--cor-negativo-fundo); color: var(--cor-negativo); }
+.resumo-mes .rs-nota { margin-top: calc(-1 * var(--esp-2)); }
+button.alerta { width: 100%; background: none; border: 0; border-top: 1px solid var(--cor-borda); font: inherit; text-align: left; cursor: pointer; }
+button.alerta:first-child { border-top: 0; }
