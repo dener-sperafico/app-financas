@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=41';
-import { SEED_CATEGORIES } from './schema.js?v=41';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=42';
+import { SEED_CATEGORIES } from './schema.js?v=42';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -466,6 +466,50 @@ export function salvarEdicao(S, original, d) {
   S.upsert('Lancamentos', l);
   if (normalize(original.descricao) !== normalize(d.descricao) || original.categoria_id !== d.categoria_id) aprender(S, d.descricao, d.categoria_id);
   return l;
+}
+
+// Ocorrências seguintes de uma série que ainda podem mudar (previstas, depois desta).
+export function proximasDaSerie(S, l) {
+  if (!l.recorrencia_id) return [];
+  return S.get('Lancamentos').filter(x => x.recorrencia_id === l.recorrencia_id && x.id !== l.id
+    && (x.ocorrencia || 0) > (l.ocorrencia || 0) && x.situacao === 'previsto')
+    .sort((a, b) => (a.ocorrencia || 0) - (b.ocorrencia || 0));
+}
+
+const diaNoMes = (iso, dia) => {
+  const ult = Number(lastDayOfMonth(monthOf(iso)).slice(8));
+  return `${monthOf(iso)}-${String(Math.min(dia, ult)).padStart(2, '0')}`;
+};
+
+// Editar esta e as próximas: aplica valor, descrição, categoria, tipo, pagamento e o dia do mês às
+// ocorrências previstas seguintes e à série (para as que ainda vão ser geradas). Orçado dos meses
+// seguintes acompanha a diferença quando era igual ao valor antigo (orçado feito para este lançamento).
+export function salvarEdicaoSerie(S, original, d) {
+  const rec = original.recorrencia_id ? S.find('Recorrencias', original.recorrencia_id) : null;
+  if (!rec) return { salvo: salvarEdicao(S, original, d), alteradas: 0 };
+  const proximas = proximasDaSerie(S, original);
+  const mudouDia = d.data.slice(8) !== original.data.slice(8);
+  const dia = Number(d.data.slice(8));
+  const acompanharOrcado = (antes, depois) => {
+    const dif = round2(depois.valor - antes.valor);
+    if (!dif || antes.categoria_id !== depois.categoria_id || antes.mes_orcamento !== depois.mes_orcamento) return;
+    const o = S.find('Orcamento', `${antes.categoria_id}|${antes.mes_orcamento}`);
+    if (o && round2(o.valor) === round2(antes.valor)) S.upsert('Orcamento', { ...o, valor: round2(o.valor + dif) });
+  };
+  const salvo = salvarEdicao(S, original, d);
+  acompanharOrcado(original, salvo);
+  let alteradas = 0;
+  proximas.forEach(x => {
+    const data = mudouDia ? diaNoMes(x.data, dia) : x.data;
+    acompanharOrcado(x, salvarEdicao(S, x, { ...d, data, situacao: 'previsto', fatura_manual: false, fatura_id: '' }));
+    alteradas++;
+  });
+  S.upsert('Recorrencias', {
+    ...rec, tipo: d.tipo, descricao: d.descricao, valor: round2(d.valor), categoria_id: d.categoria_id,
+    forma: d.forma, cartao_id: d.forma === 'cartao' ? d.cartao_id : '',
+    data_inicio: mudouDia ? diaNoMes(rec.data_inicio, dia) : rec.data_inicio,
+  });
+  return { salvo, alteradas };
 }
 
 // Excluir: só esta ocorrência, ou esta e as próximas (encerra a série).

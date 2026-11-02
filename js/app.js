@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=41';
-import { MockBackend } from './mock.js?v=41';
-import { Store } from './store.js?v=41';
-import { objToRow } from './schema.js?v=41';
-import * as M from './model.js?v=41';
-import { interpretar, previstoParecido } from './parser.js?v=41';
-import { ic, icCategoria } from './icones.js?v=41';
+import { GoogleBackend, AuthError } from './google.js?v=42';
+import { MockBackend } from './mock.js?v=42';
+import { Store } from './store.js?v=42';
+import { objToRow } from './schema.js?v=42';
+import * as M from './model.js?v=42';
+import { interpretar, previstoParecido } from './parser.js?v=42';
+import { ic, icCategoria } from './icones.js?v=42';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=41';
+} from './util.js?v=42';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1046,6 +1046,20 @@ function interpretacao(m) {
     </form>`;
 }
 
+// Edição de lançamento repetido: só este ou este e os próximos previstos da série.
+function alcanceSerie(m, rec) {
+  if (!rec) return '';
+  const prox = M.proximasDaSerie(S, m.orig);
+  if (!prox.length) return '';
+  const parc = rec.repeticao === 'parcelada';
+  const ultimo = prox.at(-1);
+  const d = m.d;
+  return `<fieldset class="card info stack alcance"><legend class="label">Aplicar a alteração em</legend>
+    <label class="check"><input type="radio" name="alcance" value="esta" ${d.alcance !== 'proximas' ? 'checked' : ''}> Só ${parc ? 'nesta parcela' : 'neste'} (${fmtDate(m.orig.data)})</label>
+    <label class="check"><input type="radio" name="alcance" value="proximas" ${d.alcance === 'proximas' ? 'checked' : ''}> ${parc ? 'Nesta e nas próximas parcelas' : 'Neste e nos próximos'} (mais ${prox.length}, até ${monthShort(ultimo.mes_orcamento || monthOf(ultimo.data))})</label>
+    <span class="small muted">Nos próximos mudam valor, descrição, categoria, pagamento e o dia do mês. Os já confirmados ficam como estão.</span></fieldset>`;
+}
+
 // Previsto parecido com o novo lançamento: só avisa e oferece abrir o previsto (não confirma nada sozinho).
 function avisoPrevisto(m) {
   if (m.type !== 'novo' || !m.dup) return '';
@@ -1079,13 +1093,16 @@ function salvarDraft(m, acao) {
   let salvo;
   if (m.type === 'editar') {
     const situacao = acao === 'confirmar' ? 'confirmado' : acao === 'manter' ? 'previsto' : m.orig.situacao;
-    salvo = M.salvarEdicao(S, m.orig, { ...d, situacao });
+    if (d.alcance === 'proximas' && m.orig.recorrencia_id) {
+      const r = M.salvarEdicaoSerie(S, m.orig, { ...d, situacao });
+      salvo = r.salvo; m.alteradas = r.alteradas;
+    } else salvo = M.salvarEdicao(S, m.orig, { ...d, situacao });
   } else {
     salvo = M.salvarNovo(S, d)[0];
   }
   closeModal();
   if (m.type === 'novo' || m.voltar) { const i = $('#cmp'); if (i) { i.value = ''; i.form.querySelector('button').disabled = true; } }
-  toast(m.type === 'editar' ? 'Alterações salvas.' : textoAnotado(salvo, d));
+  toast(m.type === 'editar' ? (m.alteradas ? `Alterado neste e em mais ${m.alteradas} ${m.alteradas === 1 ? 'lançamento' : 'lançamentos'}.` : 'Alterações salvas.') : textoAnotado(salvo, d));
 }
 
 // Textos da seção 11.2 do design system.
@@ -1256,6 +1273,7 @@ function draftForm(m) {
         <span class="small">Todo gasto precisa de orçado na categoria. Quanto planejam para ela neste mês? O orçado não muda o saldo atual, só a previsão.</span>
         <label class="field ${e.orcado ? 'err' : ''}"><span>Orçado de ${monthName(mes)}</span><input name="orcado_valor" inputmode="decimal" placeholder="0,00" value="${esc(d.orcado_valor || '')}">${e.orcado ? `<span class="error">${e.orcado}</span>` : ''}</label></div>` : ''}
       ${avisoPrevisto(m)}
+      ${alcanceSerie(m, rec)}
       <div class="btns" style="flex-direction:column">
         ${isEdit ? (situacaoPrev
           ? `<button class="btn primary" name="acao" value="confirmar">Salvar e confirmar</button><button class="btn" name="acao" value="manter">Salvar e manter como previsto</button>`
@@ -1305,6 +1323,7 @@ function readDraft(form, m) {
     d.fatura_manual = !!(calc && fid !== calc.id);
   }
   if (fd.has('orcado_valor')) d.orcado_valor = String(fd.get('orcado_valor'));
+  if (fd.has('alcance')) d.alcance = String(fd.get('alcance'));
   d.formaTrocada = false;
   return d;
 }
@@ -1899,7 +1918,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=41', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=42', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

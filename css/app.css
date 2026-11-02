@@ -544,3 +544,5 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .resumo-mes .rs-nota { margin-top: calc(-1 * var(--esp-2)); }
 button.alerta { width: 100%; background: none; border: 0; border-top: 1px solid var(--cor-borda); font: inherit; text-align: left; cursor: pointer; }
 button.alerta:first-child { border-top: 0; }
+fieldset.alcance { margin: 0; min-width: 0; }
+fieldset.alcance > legend { float: left; width: 100%; padding: 0; margin-bottom: var(--esp-1); }
