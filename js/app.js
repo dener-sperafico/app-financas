@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=43';
-import { MockBackend } from './mock.js?v=43';
-import { Store } from './store.js?v=43';
-import { objToRow } from './schema.js?v=43';
-import * as M from './model.js?v=43';
-import { interpretar, previstoParecido } from './parser.js?v=43';
-import { ic, icCategoria } from './icones.js?v=43';
+import { GoogleBackend, AuthError } from './google.js?v=44';
+import { MockBackend } from './mock.js?v=44';
+import { Store } from './store.js?v=44';
+import { objToRow } from './schema.js?v=44';
+import * as M from './model.js?v=44';
+import { interpretar, previstoParecido } from './parser.js?v=44';
+import { ic, icCategoria } from './icones.js?v=44';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=43';
+} from './util.js?v=44';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1068,10 +1068,10 @@ function alcanceSerie(m, rec) {
   const parc = rec.repeticao === 'parcelada';
   const ultimo = prox.at(-1);
   const d = m.d;
-  return `<fieldset class="card info stack alcance"><legend class="label">Aplicar a alteração em</legend>
+  return `<div class="card info stack alcance" role="radiogroup" aria-labelledby="alcance-t"><span class="rotulo" id="alcance-t">Aplicar a alteração em</span>
     <label class="check"><input type="radio" name="alcance" value="esta" ${d.alcance !== 'proximas' ? 'checked' : ''}> Só ${parc ? 'nesta parcela' : 'neste'} (${fmtDate(m.orig.data)})</label>
     <label class="check"><input type="radio" name="alcance" value="proximas" ${d.alcance === 'proximas' ? 'checked' : ''}> ${parc ? 'Nesta e nas próximas parcelas' : 'Neste e nos próximos'} (mais ${prox.length}, até ${monthShort(ultimo.mes_orcamento || monthOf(ultimo.data))})</label>
-    <span class="small muted">Nos próximos mudam valor, descrição, categoria, pagamento e o dia do mês. Os já confirmados ficam como estão.</span></fieldset>`;
+    <span class="small muted">Nos próximos mudam valor, descrição, categoria, pagamento e o dia do mês. Os já confirmados ficam como estão.</span></div>`;
 }
 
 // Previsto parecido com o novo lançamento: só avisa e oferece abrir o previsto (não confirma nada sozinho).
@@ -1933,7 +1933,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=43', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=44', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

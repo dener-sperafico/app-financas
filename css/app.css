@@ -544,5 +544,17 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .resumo-mes .rs-nota { margin-top: calc(-1 * var(--esp-2)); }
 button.alerta { width: 100%; background: none; border: 0; border-top: 1px solid var(--cor-borda); font: inherit; text-align: left; cursor: pointer; }
 button.alerta:first-child { border-top: 0; }
-fieldset.alcance { margin: 0; min-width: 0; }
-fieldset.alcance > legend { float: left; width: 100%; padding: 0; margin-bottom: var(--esp-1); }
+
+/* Campos no Safari do iPhone: data e hora têm largura mínima própria e estouravam o painel. */
+.field { min-width: 0; }
+.field input[type="date"], .field input[type="time"] {
+  -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%;
+  line-height: 44px; text-align: left; color: var(--cor-texto);
+}
+.field input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.field input[type="date"]::-webkit-calendar-picker-indicator { margin-left: auto; }
+.modal { overflow-x: hidden; }
+.modal form, .modal .stack { min-width: 0; }
+.seg label { position: relative; min-width: 0; }
+.alcance { min-width: 0; }
+.alcance .rotulo { font-size: var(--txt-apoio); font-weight: 700; color: var(--cor-texto-2); }
