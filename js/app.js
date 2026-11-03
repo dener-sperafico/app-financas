@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=42';
-import { MockBackend } from './mock.js?v=42';
-import { Store } from './store.js?v=42';
-import { objToRow } from './schema.js?v=42';
-import * as M from './model.js?v=42';
-import { interpretar, previstoParecido } from './parser.js?v=42';
-import { ic, icCategoria } from './icones.js?v=42';
+import { GoogleBackend, AuthError } from './google.js?v=43';
+import { MockBackend } from './mock.js?v=43';
+import { Store } from './store.js?v=43';
+import { objToRow } from './schema.js?v=43';
+import * as M from './model.js?v=43';
+import { interpretar, previstoParecido } from './parser.js?v=43';
+import { ic, icCategoria } from './icones.js?v=43';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=42';
+} from './util.js?v=43';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -310,7 +310,7 @@ function scrInicio() {
       <section class="col6">
         <h2 class="section-title"><a class="titulo-link" href="#/pendentes">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}${ic('chevron-right')}</a></h2>
         ${pend.length ? `<div class="list">${pend.slice(0, 3).map(pendItem).join('')}</div>${pend.length > 3 ? `<a class="btn link" href="#/pendentes">Ver os ${pend.length}</a>` : ''}`
-          : '<p class="apoio">Nada para confirmar. Pode ir fazer outra coisa da vida.</p>'}
+          : `<p class="apoio">Nada para confirmar agora. ${M.proximosPrevistos(S, hoje(), 30).length ? '<a href="#/pendentes">Ver os próximos previstos</a>' : ''}</p>`}
         ${atencao.length || totalFora ? `<h2 class="section-title">Atenção no mês</h2>
           <div class="alertas">
             ${atencao.slice(0, 4).map(x => alertaCompacto(x.disponivel < 0 ? 'est' : 'perto', x.categoria, x.disponivel < 0 ? 'passou do orçado' : 'perto do limite', x.disponivel < 0 ? `${money(-x.disponivel)} acima` : `restam ${money(x.disponivel)}`, `#/mes/${mes}/${esc(x.categoria.id)}`)).join('')}
@@ -511,8 +511,22 @@ function scrPendentes() {
   return `${banners()}
     <div class="top">${backBtn('#/inicio')}</div>
     <h1 class="section-title" style="margin-top:0">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}</h1>
-    <p class="apoio" style="margin-bottom:var(--esp-4)">A data já passou e ainda não foram confirmados. Continuam contando na previsão até vocês decidirem. Para adiar, edite a data; para cancelar, exclua.</p>
-    ${pend.length ? `<div class="list">${pend.map(pendItem).join('')}</div>` : `<div class="vazio">${ic('check')}<p>Nada para confirmar. Pode ir fazer outra coisa da vida.</p></div>`}`;
+    ${pend.length ? `<p class="apoio" style="margin-bottom:var(--esp-4)">A data já passou e ainda não foram confirmados. Continuam contando na previsão até vocês decidirem. Para adiar, edite a data; para cancelar, exclua.</p>
+      <div class="list">${pend.map(pendItem).join('')}</div>`
+      : `<div class="alertas"><div class="alerta">${ic('check')}<span class="txt">Tudo em dia: nada com data passada esperando confirmação.</span></div></div>`}
+    ${blocoProximos()}`;
+}
+
+// Próximos previstos: para confirmar antes da data ou conferir o que vem pela frente.
+function blocoProximos() {
+  const dias = ui.proximosDias || 30;
+  const prox = M.proximosPrevistos(S, hoje(), dias);
+  const total = prox.reduce((t, l) => t + (M.sign(l) * l.valor), 0);
+  const mais = dias < 180 ? `<button class="btn link" data-act="proximos-mais">Ver os próximos ${dias >= 90 ? 6 : dias / 30 + 1} meses</button>` : '';
+  return `<h2 class="section-title" id="proximos">Próximos ${dias === 30 ? '30 dias' : `${dias / 30} meses`} ${prox.length ? `<span class="contador" style="background:var(--cor-lavanda)">${prox.length}</span>` : ''}</h2>
+    <p class="apoio" style="margin-bottom:var(--esp-3)">Previstos que ainda vão chegar. Se algum já aconteceu, abra e confirme antes da data.${prox.length ? ` No total: <b class="num">${formatarReais(total, { sinal: true })}</b>.` : ''}</p>
+    ${prox.length ? `<div class="list">${prox.map(l => lancItem(l, { data: true })).join('')}</div>` : `<div class="vazio">${ic('calendar-range')}<p>Nenhum lançamento previsto neste período.</p></div>`}
+    ${mais}`;
 }
 
 function scrMes(mes) {
@@ -1668,6 +1682,7 @@ const actions = {
   },
   composicao() { openModal({ type: 'composicao' }); },
   fora(el) { const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m); m.d.categoria_id = M.FORA; m.d.tipo = 'saida'; m.aberto = null; m.errors = null; renderModal(); },
+  'proximos-mais'() { const d = ui.proximosDias || 30; ui.proximosDias = d >= 90 ? 180 : d + 30; render(); },
   rolar(el) { const a = document.getElementById(el.dataset.alvo); if (a) { a.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); a.focus({ preventScroll: true }); } },
   'ir-mes'(el) { const alvo = document.getElementById('mes-' + el.dataset.mes); if (alvo) { alvo.open = true; ui.futuroAbertos?.add(el.dataset.mes); } if (alvo) alvo.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); },
   tutorial(el) { openModal({ type: 'tutorial', passo: Number(el?.dataset?.passo || 0) }); },
@@ -1918,7 +1933,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=42', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=43', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

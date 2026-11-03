@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=42';
-import { SEED_CATEGORIES } from './schema.js?v=42';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=43';
+import { SEED_CATEGORIES } from './schema.js?v=43';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -204,6 +204,13 @@ export function sincronizarParcelas(S, hoje = todayISO()) {
     const deve = f && f.data_fechamento <= hoje ? 'confirmado' : 'previsto';
     if (l.situacao !== deve) S.upsert('Lancamentos', { ...l, situacao: deve });
   });
+}
+
+// Próximos previstos que vão pedir confirmação (os que o cartão confirma sozinho ficam de fora).
+export function proximosPrevistos(S, hoje = todayISO(), dias = 30) {
+  const ate = addDays(hoje, dias);
+  return S.get('Lancamentos').filter(l => l.situacao === 'previsto' && l.data > hoje && l.data <= ate && !ehParcelaCartao(S, l))
+    .sort((a, b) => a.data.localeCompare(b.data) || (b.valor - a.valor));
 }
 
 export function pendentes(S, hoje = todayISO()) {
