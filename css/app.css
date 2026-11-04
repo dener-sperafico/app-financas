@@ -558,3 +558,7 @@ button.alerta:first-child { border-top: 0; }
 .seg label { position: relative; min-width: 0; }
 .alcance { min-width: 0; }
 .alcance .rotulo { font-size: var(--txt-apoio); font-weight: 700; color: var(--cor-texto-2); }
+.leitura-fat .leg.pago { color: var(--cor-positivo); }
+.leitura-fat .leg.pago svg.ic { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+.leitura-fat .leg.falta { font-weight: 700; border-top: 1px solid var(--cor-borda); padding-top: 6px; }
+.leitura-fat .leg.falta .num { font-weight: 700; }

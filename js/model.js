@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=44';
-import { SEED_CATEGORIES } from './schema.js?v=44';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=45';
+import { SEED_CATEGORIES } from './schema.js?v=45';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -58,12 +58,33 @@ export function faturaInfoFromId(S, faturaId) {
   return { id: faturaId, cartao_id: cardId, mes, data_fechamento: fech, data_vencimento: venc, situacao: 'prevista', data_pagamento: '' };
 }
 
+// Pagamento antecipado (parcial) de fatura: sai da conta (Pix, débito…) e abate a fatura, sem categoria
+// e sem orçado (as compras já contam no orçado). Fica em Lancamentos com fatura_id e forma que não é cartão.
+export const ehPagamentoFatura = l => !!l.fatura_id && l.forma !== 'cartao';
+
 // Valor que a fatura cobra: compras somam, créditos (ajuste a favor) subtraem.
 export const faturaTotal = (S, faturaId) => round2(S.get('Lancamentos')
-  .filter(l => l.fatura_id === faturaId).reduce((t, l) => t - sign(l) * l.valor, 0));
+  .filter(l => l.fatura_id === faturaId && !ehPagamentoFatura(l)).reduce((t, l) => t - sign(l) * l.valor, 0));
 
-export const faturaItens = (S, faturaId) => S.get('Lancamentos').filter(l => l.fatura_id === faturaId)
+export const faturaItens = (S, faturaId) => S.get('Lancamentos').filter(l => l.fatura_id === faturaId && !ehPagamentoFatura(l))
   .sort((a, b) => a.data.localeCompare(b.data));
+
+export const pagamentosFatura = (S, faturaId) => S.get('Lancamentos').filter(l => l.fatura_id === faturaId && ehPagamentoFatura(l))
+  .sort((a, b) => a.data.localeCompare(b.data));
+export const pagoFatura = (S, faturaId) => round2(pagamentosFatura(S, faturaId).reduce((t, l) => t + l.valor, 0));
+
+export function pagarAntecipado(S, faturaId, valor, data, forma = 'pix') {
+  const f = faturaInfoFromId(S, faturaId);
+  const c = f && cartao(S, f.cartao_id);
+  const l = {
+    id: uid('lan'), tipo: 'saida', descricao: `Pagamento antecipado · fatura ${c ? c.nome : ''}`.trim(), valor: round2(valor),
+    categoria_id: '', forma: forma === 'cartao' ? 'pix' : forma, cartao_id: '', data, mes_orcamento: monthOf(data),
+    fatura_id: faturaId, fatura_manual: true, situacao: 'confirmado', recorrencia_id: '', ocorrencia: null, valor_automatico: false,
+  };
+  ensureFatura(S, f);
+  S.upsert('Lancamentos', l);
+  return l;
+}
 
 export function faturasDoCartao(S, cardId, hoje = todayISO()) {
   const ids = new Set(S.get('Faturas').filter(f => f.cartao_id === cardId).map(f => f.id));
@@ -74,7 +95,9 @@ export function faturasDoCartao(S, cardId, hoje = todayISO()) {
     const total = faturaTotal(S, id);
     const est = estimativaFatura(S, id, hoje);
     const estimativa = round2(est.reduce((t, x) => t + x.valor, 0));
-    return { ...faturaInfoFromId(S, id), total, estimativa, previsao: round2(total + estimativa), est };
+    const pago = pagoFatura(S, id);
+    const previsao = round2(total + estimativa);
+    return { ...faturaInfoFromId(S, id), total, estimativa, previsao, pago, falta: round2(Math.max(0, previsao - pago)), est };
   }).filter(f => f.mes && (f.total || f.estimativa || S.find('Faturas', f.id))).sort((a, b) => a.mes.localeCompare(b.mes));
 }
 
@@ -181,7 +204,7 @@ export function saldoAtual(S) {
     if (l.situacao === 'confirmado' && l.forma !== 'cartao' && l.data >= desde) s += sign(l) * l.valor;
   });
   S.get('Faturas').forEach(f => {
-    if (f.situacao === 'paga' && f.data_pagamento >= desde) s -= faturaTotal(S, f.id);
+    if (f.situacao === 'paga' && f.data_pagamento >= desde) s -= round2(faturaTotal(S, f.id) - pagoFatura(S, f.id));
   });
   return round2(s);
 }
@@ -223,8 +246,9 @@ export function pendentes(S, hoje = todayISO()) {
     const f = faturaInfoFromId(S, id);
     if (!f || f.situacao === 'paga' || f.data_vencimento > hoje) return;
     const total = faturaTotal(S, id);
-    if (total <= 0) return;
-    fats.push({ kind: 'fatura', item: { ...f, total }, data: f.data_vencimento });
+    const falta = round2(total - pagoFatura(S, id));
+    if (falta <= 0) return;
+    fats.push({ kind: 'fatura', item: { ...f, total, falta }, data: f.data_vencimento });
   });
   return [...lancs, ...fats].sort((a, b) => a.data.localeCompare(b.data));
 }
@@ -245,7 +269,7 @@ export function fechamentoDetalhe(S, hoje = todayISO()) {
   [...S.get('Faturas').map(f => f.id), ...S.get('Lancamentos').filter(l => l.fatura_id).map(l => l.fatura_id)].forEach(id => {
     if (vistos.has(id)) return; vistos.add(id);
     const f = faturaInfoFromId(S, id);
-    if (f && f.situacao !== 'paga' && f.data_vencimento <= fim) faturas += faturaTotal(S, id);
+    if (f && f.situacao !== 'paga' && f.data_vencimento <= fim) faturas += faturaTotal(S, id) - pagoFatura(S, id); // pago a mais que o lançado abate a estimativa (reservado)
   });
   categorias(S).forEach(c => {
     if (c.sistema) return;
@@ -264,7 +288,7 @@ export function saldoEm(S, data) {
     if (l.situacao === 'confirmado' && l.forma !== 'cartao' && l.data >= desde && l.data > data) s -= sign(l) * l.valor;
   });
   S.get('Faturas').forEach(f => {
-    if (f.situacao === 'paga' && f.data_pagamento >= desde && f.data_pagamento > data) s += faturaTotal(S, f.id);
+    if (f.situacao === 'paga' && f.data_pagamento >= desde && f.data_pagamento > data) s += round2(faturaTotal(S, f.id) - pagoFatura(S, f.id));
   });
   return round2(s);
 }
@@ -320,9 +344,9 @@ export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
   cartoes(S, true).forEach(c => faturasDoCartao(S, c.id, hoje).forEach(f => {
     if (f.situacao === 'paga') return;
     if (f.data_fechamento > hoje) abertas.add(f.id);
-    const v = round2(f.total + f.estimativa);
+    const v = f.falta;
     if (v <= 0) return;
-    add(f.data_vencimento, { tipo: 'fatura', descricao: `Fatura ${c.nome}`, valor: -v, lancado: f.total, estimativa: f.estimativa, fatura_id: f.id, atrasado: f.data_vencimento < hoje });
+    add(f.data_vencimento, { tipo: 'fatura', descricao: `Fatura ${c.nome}`, valor: -v, lancado: f.total, estimativa: f.estimativa, pago: f.pago, fatura_id: f.id, atrasado: f.data_vencimento < hoje });
   }));
   const porMes = {};
   for (let i = 0; i <= meses; i++) {
@@ -561,7 +585,8 @@ export function confirmar(S, l) {
 // Pagar fatura: valor cobrado diferente vira item na categoria Ajustes (N14).
 export function pagarFatura(S, faturaId, valorCobrado, dataPagamento) {
   const f = faturaInfoFromId(S, faturaId);
-  const total = faturaTotal(S, faturaId);
+  // O que já foi pago antes (pagamento antecipado) abate o valor a pagar agora.
+  const total = round2(faturaTotal(S, faturaId) - pagoFatura(S, faturaId));
   const dif = round2(valorCobrado - total);
   if (Math.abs(dif) >= 0.01) {
     S.upsert('Lancamentos', {

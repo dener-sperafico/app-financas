@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=44';
-import { MockBackend } from './mock.js?v=44';
-import { Store } from './store.js?v=44';
-import { objToRow } from './schema.js?v=44';
-import * as M from './model.js?v=44';
-import { interpretar, previstoParecido } from './parser.js?v=44';
-import { ic, icCategoria } from './icones.js?v=44';
+import { GoogleBackend, AuthError } from './google.js?v=45';
+import { MockBackend } from './mock.js?v=45';
+import { Store } from './store.js?v=45';
+import { objToRow } from './schema.js?v=45';
+import * as M from './model.js?v=45';
+import { interpretar, previstoParecido } from './parser.js?v=45';
+import { ic, icCategoria } from './icones.js?v=45';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=44';
+} from './util.js?v=45';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -305,7 +305,7 @@ function scrInicio() {
       ${destaque(fd, res, mes)}
       <div class="grid2 metricas">
         <a class="card metrica" href="#/saldo"><span class="label">Saldo na conta</span><span class="big num ${saldo < 0 ? 'neg' : ''}">${money(saldo)}</span><span class="apoio">Só o que já aconteceu</span></a>
-        <a class="card metrica" href="#/cartoes"><span class="label">Fatura do cartão</span><span class="big num">${money(fat.total)}</span><span class="apoio">${fat.n === 1 ? `Vence ${fmtDate(fat.venc)}` : fat.n ? `${fat.n} cartões` : 'Nenhuma aberta'}</span></a>
+        <a class="card metrica" href="#/cartoes"><span class="label">Fatura do cartão</span><span class="big num">${money(fat.total)}</span><span class="apoio">${fat.n === 1 ? `Vence ${fmtDate(fat.venc)}` : fat.n ? `${fat.n} cartões` : 'Nenhuma aberta'}${fat.pago ? ` · ${money(fat.pago)} já pago` : ''}</span></a>
       </div>
       <section class="col6">
         <h2 class="section-title"><a class="titulo-link" href="#/pendentes">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}${ic('chevron-right')}</a></h2>
@@ -347,7 +347,7 @@ function alertaCompacto(tipo, cat, situacao, valor, href) {
 function destaque(fd, res, mes) {
   const neg = fd.total < 0;
   const partes = [];
-  if (fd.faturas) partes.push(`${fd.faturas === faturasAbertas().total ? 'a fatura' : 'as faturas'} de ${money(fd.faturas)}`);
+  if (fd.faturas) partes.push(`${faturasAbertas().n === 1 ? 'a fatura' : 'as faturas'} de ${money(fd.faturas)}${faturasAbertas().pago ? ` (fora o que já foi pago)` : ''}`);
   if (fd.pagar) partes.push(`${money(fd.pagar)} em contas previstas`);
   if (fd.reservado) partes.push(`os ${money(fd.reservado)} ainda orçados`);
   const pesos = [['A fatura do cartão é', fd.faturas], ['As contas previstas são', fd.pagar], ['O orçado que ainda pode ser gasto é', fd.reservado]].sort((a, b) => b[1] - a[1]);
@@ -368,12 +368,12 @@ function destaque(fd, res, mes) {
 
 // Soma da próxima fatura em aberto de cada cartão (lançado + estimativa pelo orçado).
 function faturasAbertas() {
-  let total = 0, n = 0, venc = '';
+  let total = 0, n = 0, venc = '', pago = 0;
   M.cartoes(S).forEach(c => {
     const f = M.faturasDoCartao(S, c.id).find(x => x.situacao !== 'paga' && x.previsao > 0);
-    if (f) { total += f.previsao; n++; venc = f.data_vencimento; }
+    if (f) { total += f.falta; pago += f.pago; n++; venc = f.data_vencimento; }
   });
-  return { total: round2(total), n, venc };
+  return { total: round2(total), n, venc, pago: round2(pago) };
 }
 
 // Barra de orçamento (8.9): realizado cheio, previsto mais claro; estourado em vermelho.
@@ -408,7 +408,7 @@ function pendItem(p) {
     const c = M.cartao(S, p.item.cartao_id);
     return `<div class="item">
       <button class="abrir" data-act="fatura" data-id="${esc(p.item.id)}">${ic('credit-card')}<span class="meio"><span class="t">Fatura ${esc(c ? c.nome : '')}</span><span class="s">${monthName(p.item.mes, false)} · venceu ${fmtDate(p.item.data_vencimento)}</span></span></button>
-      <span class="r"><span class="num">${money(p.item.total)}</span><button class="btn pequeno" data-act="pagar-fatura" data-id="${esc(p.item.id)}">${ic('check')}Confirmar</button></span></div>`;
+      <span class="r"><span class="num">${money(p.item.falta ?? p.item.total)}</span><button class="btn pequeno" data-act="pagar-fatura" data-id="${esc(p.item.id)}">${ic('check')}Confirmar</button></span></div>`;
   }
   const l = p.item;
   const c = M.categoria(S, l.categoria_id);
@@ -419,6 +419,13 @@ function pendItem(p) {
 }
 
 function lancItem(l, { data = false } = {}) {
+  if (M.ehPagamentoFatura(l)) {
+    const f = M.faturaInfoFromId(S, l.fatura_id);
+    const sub = [data ? fmtDate(l.data) : '', M.formaNome(l.forma), f ? `abate a fatura de ${monthShort(f.mes)}` : ''].filter(Boolean).join(' · ');
+    return `<button class="item" data-act="fatura" data-id="${esc(l.fatura_id)}">${ic('credit-card')}
+      <span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${esc(sub)}</span></span>
+      <span class="r"><span class="num">${formatarReais(l.valor)}</span><span class="badge envio">pagamento</span></span></button>`;
+  }
   const c = M.categoria(S, l.categoria_id);
   const card = l.cartao_id ? M.cartao(S, l.cartao_id) : null;
   const naFila = S.queue.some(q => q.sheet === 'Lancamentos' && q.key === l.id);
@@ -713,7 +720,7 @@ function blocoMesFuturo(p, mes) {
   // Mostra os dias com movimento, o primeiro (hoje), o de menor saldo e o último do mês.
   const mostrar = dias.filter(d => d.movimentos.length || d.data === hojeISO || d === menor || d === fim);
   const linha = d => {
-    const movs = d.movimentos.map(m => `<span class="mv"><span>${esc(m.descricao)}${m.atrasado ? ' <span class="badge pend">atrasado</span>' : ''}${m.tipo === 'fatura' && m.estimativa ? `<span class="s"> · ${money(m.lancado)} lançado + ${money(m.estimativa)} estimado</span>` : ''}</span><span class="num ${m.valor > 0 ? 'pos' : ''}">${formatarReais(m.valor, { sinal: true })}</span></span>`).join('');
+    const movs = d.movimentos.map(m => `<span class="mv"><span>${esc(m.descricao)}${m.atrasado ? ' <span class="badge pend">atrasado</span>' : ''}${m.tipo === 'fatura' && m.estimativa ? `<span class="s"> · ${money(m.lancado)} lançado + ${money(m.estimativa)} estimado</span>` : ''}${m.tipo === 'fatura' && m.pago ? `<span class="s"> · ${money(m.pago)} já pago antes</span>` : ''}</span><span class="num ${m.valor > 0 ? 'pos' : ''}">${formatarReais(m.valor, { sinal: true })}</span></span>`).join('');
     const marcas = [d === menor && dias.length > 1 ? '<span class="badge prev">menor saldo do mês</span>' : '', d === fim ? '<span class="badge envio">fim do mês</span>' : ''].join(' ');
     return `<div class="item dia-fut ${d.saldo < 0 ? 'negativo' : ''}">
       <span class="meio"><span class="t">${d.data === hojeISO ? 'Hoje' : rotuloDia(d.data)} ${marcas}</span>${movs ? `<span class="mvs">${movs}</span>` : ''}</span>
@@ -823,10 +830,13 @@ function leituraFatura(f, { compacto = false, cats = [] } = {}) {
     ? `<span class="leg"><span><i class="ponto"></i>Já na fatura</span><span class="num">${money(f.total)}</span></span>
        <span class="leg"><span><i class="ponto prev"></i>Ainda pode entrar${compacto ? '' : `<span class="small muted"> · orçado não gasto${cats.length ? ` de ${cats.map(c => esc(c.nome)).join(', ')}` : ''}</span>`}</span><span class="num muted">${money(est)}</span></span>`
     : '';
+  const pago = f.situacao !== 'paga' ? (f.pago || 0) : 0;
+  const pagoTxt = pago ? `<span class="leg pago"><span>${ic('check')}Já pago antes${compacto ? '' : '<span class="small muted"> · pagamento antecipado</span>'}</span><span class="num">${formatarReais(-pago)}</span></span>
+       <span class="leg falta"><span>Falta pagar${aberta && est ? ' (previsto)' : ''}</span><span class="num">${money(Math.max(0, total - pago))}</span></span>` : '';
   return `<span class="leitura-fat">
     <span class="row"><span class="small muted">${rotulo}</span><span class="badge ${st.tipo}">${st.curto}</span></span>
     <span class="big num">${money(total)}</span>
-    ${barra}${legenda}
+    ${barra}${legenda}${pagoTxt}
     <span class="small muted">${st.texto}</span>
   </span>`;
 }
@@ -1173,8 +1183,11 @@ function faturaPanel(m) {
   const total = M.faturaTotal(S, m.id);
   const est = M.estimativaFatura(S, m.id);
   const estTotal = round2(est.reduce((t, x) => t + x.valor, 0));
-  const f = { ...f0, total, estimativa: estTotal };
+  const pagos = M.pagamentosFatura(S, m.id);
+  const pago = M.pagoFatura(S, m.id);
+  const f = { ...f0, total, estimativa: estTotal, pago };
   const paga = f.situacao === 'paga';
+  const falta = round2(total - pago);
   const aberta = !paga && f.data_fechamento > hoje();
   const dataPadrao = f.data_vencimento <= hoje() ? f.data_vencimento : hoje();
   return `${head(`Fatura ${esc(c?.nome || '')} · ${monthName(f.mes, false)}`)}
@@ -1185,10 +1198,22 @@ function faturaPanel(m) {
     ${est.length ? `<h3 class="section-title">Ainda pode entrar <span class="small muted" style="font-weight:600">estimativa</span><span class="r num muted">${money(estTotal)}</span></h3>
       <p class="small muted" style="margin:-4px 0 var(--esp-3)">O orçado de ${monthName(f.mes, false)} que ainda não foi gasto nas categorias pagas neste cartão. Diminui conforme vocês lançam compras e some quando a fatura fecha.</p>
       <div class="list">${est.map(x => `<div class="item">${icCategoria(x.categoria)}<span class="meio"><span class="t">${esc(x.categoria.nome)}</span><span class="s">ainda não gasto do orçado</span></span><span class="r"><span class="num muted">${money(x.valor)}</span></span></div>`).join('')}</div>` : ''}
+    ${pagos.length ? `<h3 class="section-title">Pago antes do vencimento<span class="r num">${formatarReais(-pago)}</span></h3>
+      <p class="small muted" style="margin:-4px 0 var(--esp-3)">Já saiu da conta e abate o valor desta fatura. Não conta no orçado: as compras já contam.</p>
+      <div class="list">${pagos.map(l => `<div class="item">${ic('credit-card')}<span class="meio"><span class="t">${money(l.valor)}</span><span class="s">${fmtDate(l.data)} · ${esc(M.formaNome(l.forma))}</span></span>
+        ${paga ? '' : `<button class="btn pequeno" data-act="excluir-pagamento" data-id="${esc(l.id)}" aria-label="Excluir pagamento de ${money(l.valor)} em ${fmtDate(l.data)}">${ic('trash-2')}Excluir</button>`}</div>`).join('')}</div>` : ''}
+    ${paga ? '' : m.antecipar ? `<form class="stack secao card" data-form="antecipar">
+      <input type="hidden" name="id" value="${esc(m.id)}">
+      <h3 class="section-title" style="margin:0">Pagar parte antes do vencimento</h3>
+      ${campoValor('valor', 'Valor pago', '', true)}
+      <label class="field"><span>Data do pagamento</span><input type="date" name="data" value="${hoje()}"><span class="hint">O saldo cai nesta data. A fatura segue com as mesmas datas.</span></label>
+      <label class="field"><span>Saiu da conta por</span><select name="forma">${M.FORMAS.filter(x => x.id !== 'cartao').map(x => `<option value="${x.id}">${x.nome}</option>`).join('')}</select></label>
+      <div class="btns"><button type="button" class="btn" data-act="antecipar" data-id="">Cancelar</button><button class="btn primary">Registrar pagamento</button></div>
+    </form>` : `<button class="btn secao" data-act="antecipar" data-id="${esc(m.id)}">${ic('plus')}Pagar parte antes do vencimento</button>`}
     ${paga ? '' : aberta ? '' : `<form class="stack secao" data-form="pagar">
       <input type="hidden" name="id" value="${esc(m.id)}">
-      <h3 class="section-title" style="margin:0">Confirmar pagamento</h3>
-      ${campoValor('valor', 'Valor cobrado pelo banco', total).replace('</label>', '<span class="hint">Se for diferente do calculado, a diferença vira o item "Ajuste da fatura".</span></label>')}
+      <h3 class="section-title" style="margin:0">Confirmar pagamento${pago ? ' do restante' : ''}</h3>
+      ${campoValor('valor', pago ? 'Valor pago agora' : 'Valor cobrado pelo banco', falta).replace('</label>', `<span class="hint">${pago ? `Fatura de ${money(total)} menos ${money(pago)} já pagos. ` : ''}Se for diferente do calculado, a diferença vira o item "Ajuste da fatura".</span></label>`)}
       <label class="field"><span>Data do pagamento</span><input type="date" name="data" value="${dataPadrao}"><span class="hint">O saldo cai nesta data. Pode ser antes do vencimento.</span></label>
       <button class="btn primary">Confirmar pagamento</button>
       <p class="small muted">Compra estornada: abra o item e exclua.</p></form>`}`;
@@ -1693,10 +1718,12 @@ const actions = {
   editar(el) { editarLanc(el.dataset.id); },
   excluir(el) { openModal({ type: 'excluir', id: el.dataset.id }); },
   fatura(el) { openModal({ type: 'fatura', id: el.dataset.id }); },
+  antecipar(el) { if (ui.modal?.type !== 'fatura') return; ui.modal.antecipar = !!el.dataset.id; renderModal(); if (ui.modal.antecipar) setTimeout(() => $('.modal input[name=valor]')?.focus(), 50); },
+  'excluir-pagamento'(el) { const volta = ui.modal; openModal({ type: 'excluir', id: el.dataset.id, voltar: volta ? { ...volta, antecipar: false } : null }); },
   'faturas-antigas'(el) { ui.faturasAntigas = el.dataset.id; ui.forceRender = true; render(); },
   'pagar-fatura'(el) {
     const f = M.faturaInfoFromId(S, el.dataset.id);
-    const total = M.faturaTotal(S, el.dataset.id);
+    const total = round2(M.faturaTotal(S, el.dataset.id) - M.pagoFatura(S, el.dataset.id));
     M.pagarFatura(S, el.dataset.id, total, f.data_vencimento <= hoje() ? f.data_vencimento : hoje());
     toast('Fatura confirmada');
   },
@@ -1789,14 +1816,25 @@ const forms = {
   },
   excluir(fd) {
     const l = S.find('Lancamentos', fd.get('id'));
-    if (l) { M.excluir(S, l, fd.get('alcance') || 'esta'); toast('Lançamento excluído.'); }
-    closeModal();
+    if (l) { M.excluir(S, l, fd.get('alcance') || 'esta'); toast(M.ehPagamentoFatura(l) ? 'Pagamento excluído.' : 'Lançamento excluído.'); }
+    const v = ui.modal?.voltar;
+    if (v && v.type === 'fatura') openModal(v); else closeModal();
   },
   orcado(fd, form, submitter) {
     const v = parseMoney(fd.get('valor'));
     if (v === null || v < 0) { toast('Informe um valor'); return; }
     M.setOrcado(S, fd.get('cat'), fd.get('mes'), v, submitter?.value === 'repetir');
     closeModal(); toast('Orçado salvo');
+  },
+  antecipar(fd) {
+    const v = parseMoney(fd.get('valor'));
+    if (!v || v <= 0) { toast('Informe o valor pago'); return; }
+    const id = String(fd.get('id'));
+    M.pagarAntecipado(S, id, v, String(fd.get('data') || hoje()), String(fd.get('forma') || 'pix'));
+    const fi = M.faturaInfoFromId(S, id);
+    const fx = fi && M.faturasDoCartao(S, fi.cartao_id).find(x => x.id === id);
+    ui.modal = { type: 'fatura', id }; renderModal();
+    toast(`Pagamento de ${money(v)} registrado.${fx ? (fx.falta > 0 ? ` Falta pagar ${money(fx.falta)}.` : ' A fatura prevista está paga.') : ''}`);
   },
   pagar(fd) {
     const v = parseMoney(fd.get('valor'));
@@ -1933,7 +1971,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=44', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=45', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
