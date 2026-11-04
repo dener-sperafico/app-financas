@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=47';
-import { SEED_CATEGORIES } from './schema.js?v=47';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=48';
+import { SEED_CATEGORIES } from './schema.js?v=48';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -143,6 +143,14 @@ export function setOrcado(S, catId, mes, valor, repetir = false) {
     }
   }
   rows.forEach(r => S.upsert('Orcamento', r));
+}
+
+// Tirar o orçado: a categoria fica "sem orçado" no mês (diferente de orçado zero, que conta qualquer gasto como acima).
+export function removerOrcado(S, catId, mes, repetir = false) {
+  for (let i = 0; i <= (repetir ? 12 : 0); i++) {
+    const k = `${catId}|${addMonthKey(mes, i)}`;
+    if (S.find('Orcamento', k)) S.remove('Orcamento', k);
+  }
 }
 
 export function catMes(S, catId, mes) {
