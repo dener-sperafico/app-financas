@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=49';
-import { MockBackend } from './mock.js?v=49';
-import { Store } from './store.js?v=49';
-import { objToRow } from './schema.js?v=49';
-import * as M from './model.js?v=49';
-import { interpretar, previstoParecido } from './parser.js?v=49';
-import { ic, icCategoria } from './icones.js?v=49';
+import { GoogleBackend, AuthError } from './google.js?v=50';
+import { MockBackend } from './mock.js?v=50';
+import { Store } from './store.js?v=50';
+import { objToRow } from './schema.js?v=50';
+import * as M from './model.js?v=50';
+import { interpretar, previstoParecido } from './parser.js?v=50';
+import { ic, icCategoria } from './icones.js?v=50';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=49';
+} from './util.js?v=50';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -330,8 +330,8 @@ function scrInicio() {
           <a class="atalho" role="listitem" href="#/saldo">${ic('sliders-horizontal')}<span>Ajustar saldo</span></a>
           <a class="atalho" role="listitem" href="#/categorias">${ic('tag')}<span>Categorias</span></a>
         </div>
-        <h2 class="section-title">Últimos lançamentos</h2>
-        ${ultimos.length ? `<div class="list">${ultimos.map(l => lancItem(l, { data: true })).join('')}</div>`
+        <h2 class="section-title"><a class="titulo-link" href="#/lancamentos">Últimos lançamentos${ic('chevron-right')}</a></h2>
+        ${ultimos.length ? `<div class="list">${ultimos.map(l => lancItem(l, { data: true })).join('')}</div><a class="btn link" href="#/lancamentos">Ver todos os lançamentos</a>`
           : '<div class="vazio">' + ic('list') + '<p>Nada lançado ainda. Escreva no campo abaixo, por exemplo: <b>mercado 150 pix</b>.</p></div>'}
       </section>
     </div>`;
@@ -1999,7 +1999,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=49', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=50', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
