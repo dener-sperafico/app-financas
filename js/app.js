@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=45';
-import { MockBackend } from './mock.js?v=45';
-import { Store } from './store.js?v=45';
-import { objToRow } from './schema.js?v=45';
-import * as M from './model.js?v=45';
-import { interpretar, previstoParecido } from './parser.js?v=45';
-import { ic, icCategoria } from './icones.js?v=45';
+import { GoogleBackend, AuthError } from './google.js?v=46';
+import { MockBackend } from './mock.js?v=46';
+import { Store } from './store.js?v=46';
+import { objToRow } from './schema.js?v=46';
+import * as M from './model.js?v=46';
+import { interpretar, previstoParecido } from './parser.js?v=46';
+import { ic, icCategoria } from './icones.js?v=46';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=45';
+} from './util.js?v=46';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1204,12 +1204,12 @@ function faturaPanel(m) {
         ${paga ? '' : `<button class="btn pequeno" data-act="excluir-pagamento" data-id="${esc(l.id)}" aria-label="Excluir pagamento de ${money(l.valor)} em ${fmtDate(l.data)}">${ic('trash-2')}Excluir</button>`}</div>`).join('')}</div>` : ''}
     ${paga ? '' : m.antecipar ? `<form class="stack secao card" data-form="antecipar">
       <input type="hidden" name="id" value="${esc(m.id)}">
-      <h3 class="section-title" style="margin:0">Pagar parte antes do vencimento</h3>
+      <h3 class="section-title" style="margin:0">Antecipar pagamento</h3>
       ${campoValor('valor', 'Valor pago', '', true)}
       <label class="field"><span>Data do pagamento</span><input type="date" name="data" value="${hoje()}"><span class="hint">O saldo cai nesta data. A fatura segue com as mesmas datas.</span></label>
       <label class="field"><span>Saiu da conta por</span><select name="forma">${M.FORMAS.filter(x => x.id !== 'cartao').map(x => `<option value="${x.id}">${x.nome}</option>`).join('')}</select></label>
       <div class="btns"><button type="button" class="btn" data-act="antecipar" data-id="">Cancelar</button><button class="btn primary">Registrar pagamento</button></div>
-    </form>` : `<button class="btn secao" data-act="antecipar" data-id="${esc(m.id)}">${ic('plus')}Pagar parte antes do vencimento</button>`}
+    </form>` : `<div class="btns secao"><button class="btn block" data-act="antecipar" data-id="${esc(m.id)}">${ic('clock')}Antecipar pagamento</button></div>`}
     ${paga ? '' : aberta ? '' : `<form class="stack secao" data-form="pagar">
       <input type="hidden" name="id" value="${esc(m.id)}">
       <h3 class="section-title" style="margin:0">Confirmar pagamento${pago ? ' do restante' : ''}</h3>
@@ -1971,7 +1971,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=45', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=46', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
