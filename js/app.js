@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=48';
-import { MockBackend } from './mock.js?v=48';
-import { Store } from './store.js?v=48';
-import { objToRow } from './schema.js?v=48';
-import * as M from './model.js?v=48';
-import { interpretar, previstoParecido } from './parser.js?v=48';
-import { ic, icCategoria } from './icones.js?v=48';
+import { GoogleBackend, AuthError } from './google.js?v=49';
+import { MockBackend } from './mock.js?v=49';
+import { Store } from './store.js?v=49';
+import { objToRow } from './schema.js?v=49';
+import * as M from './model.js?v=49';
+import { interpretar, previstoParecido } from './parser.js?v=49';
+import { ic, icCategoria } from './icones.js?v=49';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=48';
+} from './util.js?v=49';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1168,13 +1168,31 @@ function orcadoPanel(m) {
       <p class="small muted">${c.tipo === 'entrada' ? 'Recebido' : 'Realizado'} ${money(x.realizado)} · previsto ${money(x.previsto)}. O orçado não muda o saldo, só a previsão.</p>
       <button class="btn primary" name="modo" value="so">Salvar só em ${monthName(m.mes, false)}</button>
       <button class="btn" name="modo" value="repetir">Salvar e copiar para os próximos 12 meses</button>
-      ${x.orcado !== null ? `<button class="btn danger" name="modo" value="remover">${ic('trash-2')}Tirar o orçado de ${monthName(m.mes, false)}</button>` : ''}
+      ${x.orcado !== null ? blocoNaoOrcar(c, m.mes) : ''}
       <p class="small muted">${(() => {
         const dif = Array.from({ length: 12 }, (_, i) => M.orcado(S, m.cat, addMonthKey(m.mes, i + 1))).filter(v => v !== null && v !== x.orcado).length;
         return dif ? `Copiar substitui o orçado dos próximos 12 meses. Hoje, ${dif} ${dif === 1 ? 'deles tem' : 'deles têm'} um valor diferente de ${monthName(m.mes, false)}.` : 'Copiar grava o mesmo valor nos próximos 12 meses.';
       })()}</p>
-      ${x.orcado !== null ? `<p class="small muted">Tirar o orçado deixa a categoria sem orçado no mês. É diferente de orçado zero, em que qualquer gasto aparece como acima do orçado. Para tirar também dos próximos meses, apague o valor e use "copiar".</p>` : ''}
     </form>`;
+}
+
+// Não orçar a categoria no mês: tira o limite e pergunta, um a um, quais previstos do mês saem junto.
+function blocoNaoOrcar(c, mes) {
+  const prev = S.get('Lancamentos').filter(l => l.categoria_id === c.id && l.mes_orcamento === mes && l.situacao === 'previsto')
+    .sort((a, b) => a.data.localeCompare(b.data));
+  const nm = monthName(mes, false);
+  const desc = l => {
+    const rec = l.recorrencia_id ? S.find('Recorrencias', l.recorrencia_id) : null;
+    const extra = rec ? (rec.total_ocorrencias ? ` · parcela ${l.ocorrencia} de ${rec.total_ocorrencias}` : rec.repeticao === 'anual' ? ' · todo ano (só esta vez)' : ' · todo mês (só esta vez)') : '';
+    return `${esc(l.descricao)} · ${fmtDate(l.data)}${l.forma === 'cartao' ? ' · cartão' : ''}${extra}`;
+  };
+  return `<div class="card stack nao-orcar">
+    <span class="rotulo">Não orçar ${esc(c.nome)} em ${nm}</span>
+    <span class="small muted">Tira o limite da categoria neste mês. Ela passa para "Sem orçado neste mês" e não guarda mais dinheiro na previsão. Os gastos já confirmados continuam.</span>
+    ${prev.length ? `<span class="small"><b>Excluir também ${prev.length === 1 ? 'este previsto' : 'estes previstos'}?</b> Desmarque o que ainda vai acontecer.</span>
+      <div class="stack" style="gap:var(--esp-1)">${prev.map(l => `<label class="check"><input type="checkbox" name="excluir_prev" value="${esc(l.id)}" checked> <span class="meio">${desc(l)}</span> <span class="num">${money(l.valor)}</span></label>`).join('')}</div>` : ''}
+    <button class="btn danger" name="modo" value="remover">${ic('trash-2')}Não orçar em ${nm}</button>
+  </div>`;
 }
 
 function faturaPanel(m) {
@@ -1828,7 +1846,9 @@ const forms = {
     if (submitter?.value === 'remover' || (v === null && String(fd.get('valor') || '').trim() === '')) {
       const repetir = submitter?.value === 'repetir';
       M.removerOrcado(S, cat, mes, repetir);
-      closeModal(); toast(repetir ? `Orçado tirado de ${monthName(mes, false)} e dos próximos 12 meses` : `Orçado tirado de ${monthName(mes, false)}`); return;
+      let n = 0;
+      if (submitter?.value === 'remover') fd.getAll('excluir_prev').forEach(id => { const l = S.find('Lancamentos', String(id)); if (l && l.situacao === 'previsto') { M.excluir(S, l, 'esta'); n++; } });
+      closeModal(); toast(`${repetir ? `Sem orçado em ${monthName(mes, false)} e nos próximos 12 meses` : `Sem orçado em ${monthName(mes, false)}`}${n ? ` · ${n} ${n === 1 ? 'previsto excluído' : 'previstos excluídos'}` : ''}`); return;
     }
     if (v === null || v < 0) { toast('Informe um valor'); return; }
     M.setOrcado(S, cat, mes, v, submitter?.value === 'repetir');
@@ -1979,7 +1999,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=48', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=49', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

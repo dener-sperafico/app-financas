@@ -1,10 +1,10 @@
 // Guarda as telas do app no aparelho para abrir sem internet.
 // Os dados ficam no próprio app; este arquivo só cuida dos arquivos do site.
-const VERSION = 'af-v48';
+const VERSION = 'af-v49';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/app.css?v=48',
-  './js/app.js?v=48', './js/config.js?v=48', './js/schema.js?v=48', './js/util.js?v=48', './js/model.js?v=48',
-  './js/parser.js?v=48', './js/store.js?v=48', './js/google.js?v=48', './js/mock.js?v=48', './js/icones.js?v=48',
+  './', './index.html', './manifest.webmanifest', './css/app.css?v=49',
+  './js/app.js?v=49', './js/config.js?v=49', './js/schema.js?v=49', './js/util.js?v=49', './js/model.js?v=49',
+  './js/parser.js?v=49', './js/store.js?v=49', './js/google.js?v=49', './js/mock.js?v=49', './js/icones.js?v=49',
   './icons/oikon.svg', './icons/icon-192.png', './icons/icon-180.png',
   './fonts/mulish-400.woff2', './fonts/mulish-600.woff2', './fonts/mulish-700.woff2', './fonts/mulish-800.woff2',
   './fonts/outfit-500.woff2', './fonts/outfit-600.woff2',

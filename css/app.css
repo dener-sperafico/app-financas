@@ -562,3 +562,8 @@ button.alerta:first-child { border-top: 0; }
 .leitura-fat .leg.pago svg.ic { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
 .leitura-fat .leg.falta { font-weight: 700; border-top: 1px solid var(--cor-borda); padding-top: 6px; }
 .leitura-fat .leg.falta .num { font-weight: 700; }
+.nao-orcar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); }
+.nao-orcar .rotulo { font-weight: 700; }
+.nao-orcar .check { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--txt-apoio); }
+.nao-orcar .check .meio { flex: 1; min-width: 0; }
+.nao-orcar .check .num { font-weight: 600; white-space: nowrap; }
