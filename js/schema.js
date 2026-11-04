@@ -73,7 +73,8 @@ export function objToRow(sheet, o) {
 export function isValidRow(sheet, o) {
   const key = KEY[sheet](o);
   if (!key || key.includes('undefined')) return false;
-  if (sheet === 'Lancamentos') return o.valor !== null && !!o.data && !!o.categoria_id && !!o.tipo;
+  // Pagamento antecipado de fatura não tem categoria: é identificado pela fatura (fatura_id) e por não ser no cartão.
+  if (sheet === 'Lancamentos') return o.valor !== null && !!o.data && !!o.tipo && (!!o.categoria_id || (!!o.fatura_id && o.forma !== 'cartao'));
   if (sheet === 'Orcamento') return o.valor !== null && /^\d{4}-\d{2}$/.test(o.mes);
   return true;
 }

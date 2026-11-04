@@ -1,6 +1,6 @@
 // Campo único: interpreta frases como "gasolina 300 nubank dener 29/10" sem IA (N04).
-import { normalize, parseMoney, todayISO, addDays, dateOf, parseISO, pad, daysBetween } from './util.js?v=46';
-import { categorias, cartoes, palavrasDe, categoria, formaPrevista } from './model.js?v=46';
+import { normalize, parseMoney, todayISO, addDays, dateOf, parseISO, pad, daysBetween } from './util.js?v=47';
+import { categorias, cartoes, palavrasDe, categoria, formaPrevista } from './model.js?v=47';
 
 const FORMA_WORDS = {
   pix: 'pix', debito: 'debito', dinheiro: 'dinheiro', especie: 'dinheiro', boleto: 'boleto',
