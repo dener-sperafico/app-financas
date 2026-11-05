@@ -567,3 +567,9 @@ button.alerta:first-child { border-top: 0; }
 .nao-orcar .check { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--txt-apoio); }
 .nao-orcar .check .meio { flex: 1; min-width: 0; }
 .nao-orcar .check .num { font-weight: 600; white-space: nowrap; }
+/* Lançamentos do mês: seções Para confirmar / Até hoje / Ainda no mês */
+.dia.sec { font-size: var(--txt-titulo-3); font-weight: 800; color: var(--cor-texto); margin-top: var(--esp-6); }
+.dia.sec:first-child { margin-top: 0; }
+.lanc-fut { margin-top: var(--esp-6); }
+.lanc-fut .corpo { gap: 0; }
+.lanc-fut .corpo .dia:first-child { margin-top: 0; }

@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=51';
-import { MockBackend } from './mock.js?v=51';
-import { Store } from './store.js?v=51';
-import { objToRow } from './schema.js?v=51';
-import * as M from './model.js?v=51';
-import { interpretar, previstoParecido } from './parser.js?v=51';
-import { ic, icCategoria } from './icones.js?v=51';
+import { GoogleBackend, AuthError } from './google.js?v=52';
+import { MockBackend } from './mock.js?v=52';
+import { Store } from './store.js?v=52';
+import { objToRow } from './schema.js?v=52';
+import * as M from './model.js?v=52';
+import { interpretar, previstoParecido } from './parser.js?v=52';
+import { ic, icCategoria } from './icones.js?v=52';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=51';
+} from './util.js?v=52';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -488,12 +488,30 @@ function lancList(mes, cat, f = 'todos') {
     return s || f !== 'todos' ? '<div class="vazio">' + ic('search') + '<p>Nada encontrado com esse filtro.</p></div>'
       : `<div class="vazio">${ic('list')}<p>Nada lançado em ${monthName(mes, false)} ainda.</p><button class="btn" data-act="focar-campo">Lançar o primeiro gasto</button></div>`;
   }
-  const pend = ls.filter(l => l.situacao === 'previsto' && l.data <= hoje() && !(l.forma === 'cartao' && l.recorrencia_id));
+  const h = hoje();
+  const pend = ls.filter(l => l.situacao === 'previsto' && l.data <= h && !(l.forma === 'cartao' && l.recorrencia_id));
   const resto = ls.filter(l => !pend.includes(l));
-  const dias = [];
-  resto.forEach(l => { const g = dias.at(-1); if (g && g.data === l.data) g.itens.push(l); else dias.push({ data: l.data, itens: [l] }); });
-  return (pend.length ? `<h2 class="dia">Para confirmar</h2><div class="list">${pend.map(l => lancItem(l, { data: true })).join('')}</div>` : '')
-    + dias.map(g => `<h2 class="dia">${rotuloDia(g.data)}</h2><div class="list">${g.itens.map(l => lancItem(l)).join('')}</div>`).join('');
+  // Até hoje: do mais recente para o mais antigo. De amanhã em diante: do mais próximo para o mais distante.
+  const passados = resto.filter(l => l.data <= h);
+  const futuros = resto.filter(l => l.data > h).sort((a, b) => a.data.localeCompare(b.data) || (a.criado_em || '').localeCompare(b.criado_em || ''));
+  const porDia = arr => {
+    const dias = [];
+    arr.forEach(l => { const g = dias.at(-1); if (g && g.data === l.data) g.itens.push(l); else dias.push({ data: l.data, itens: [l] }); });
+    return dias.map(g => `<h3 class="dia">${rotuloDia(g.data)}</h3><div class="list">${g.itens.map(l => lancItem(l)).join('')}</div>`).join('');
+  };
+  let html = pend.length ? `<h2 class="dia sec">Para confirmar</h2><div class="list">${pend.map(l => lancItem(l, { data: true })).join('')}</div>` : '';
+  if (passados.length) html += `${pend.length || futuros.length ? '<h2 class="dia sec">Até hoje</h2>' : ''}${porDia(passados)}`;
+  if (futuros.length) {
+    if (!passados.length && !pend.length) html += porDia(futuros); // mês futuro: tudo é previsto, lista direto
+    else {
+      const total = futuros.reduce((t, l) => t + M.sign(l) * l.valor, 0);
+      html += `<details class="mes-fut lanc-fut" ${ui.lancFutAberto ? 'open' : ''}>
+        <summary><span class="meio"><span class="t">Ainda em ${monthName(mes, false)}</span><span class="s">${futuros.length} ${futuros.length === 1 ? 'previsto' : 'previstos'} de ${fmtDate(futuros[0].data)} a ${fmtDate(futuros.at(-1).data)}</span></span>
+          <span class="r"><span class="num ${total > 0 ? 'pos' : ''}">${formatarReais(total, { sinal: true })}</span></span>${ic('chevron-down', 'seta')}</summary>
+        <div class="corpo">${porDia(futuros)}</div></details>`;
+    }
+  }
+  return html;
 }
 
 // "Hoje", "Ontem", "seg., 26 out."
@@ -1790,6 +1808,7 @@ document.addEventListener('input', ev => {
 // Acordeões do Futuro: lembra quais meses estão abertos entre um redesenho e outro.
 document.addEventListener('toggle', ev => {
   const d = ev.target;
+  if (d instanceof HTMLDetailsElement && d.classList.contains('lanc-fut')) { ui.lancFutAberto = d.open; return; }
   if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('mes-fut')) return;
   if (!ui.futuroAbertos) ui.futuroAbertos = new Set();
   if (d.open) ui.futuroAbertos.add(d.dataset.mes); else ui.futuroAbertos.delete(d.dataset.mes);
@@ -1999,7 +2018,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=51', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=52', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
