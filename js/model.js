@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=50';
-import { SEED_CATEGORIES } from './schema.js?v=50';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=51';
+import { SEED_CATEGORIES } from './schema.js?v=51';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -312,7 +312,8 @@ export function fechamentoDoMes(S, mes, hoje = todayISO()) {
   let inicio, fim;
   if (quando === 'futuro') {
     const n = (Number(mes.slice(0, 4)) - Number(atual.slice(0, 4))) * 12 + Number(mes.slice(5)) - Number(atual.slice(5));
-    const p = projecaoDiaria(S, hoje, n);
+    if (n > 11) return null; // além do horizonte em que as repetições estão gravadas
+    const p = projecaoDiaria(S, hoje, n + 1);
     const dia = d => p.dias.find(x => x.data === d)?.saldo;
     inicio = dia(vespera); fim = dia(fimMes);
     if (inicio === undefined || fim === undefined) return null;
@@ -334,9 +335,11 @@ export function fechamentoDoMes(S, mes, hoje = todayISO()) {
 // (lançado + estimativa pelo orçado), − orçado ainda livre sem data, espalhado por igual nos dias do mês.
 // Gasto com data (previsto) sai no dia dele; só o que sobra do orçado é espalhado. O último dia do mês
 // atual fecha com o mesmo valor de fechamentoMesAtual. Previsto e fatura atrasados entram hoje.
+// meses: quantos meses mostrar, contando o atual. As repetições sem fim são gravadas até 12 meses à frente de hoje,
+// então 12 meses (o atual + 11) é o horizonte em que entradas e saídas estão completas.
 export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
   const mes0 = monthOf(hoje);
-  const fimTotal = lastDayOfMonth(addMonthKey(mes0, meses));
+  const fimTotal = lastDayOfMonth(addMonthKey(mes0, meses - 1));
   const mov = new Map();
   const add = (data, m) => {
     const d = data < hoje ? hoje : data;
@@ -357,7 +360,7 @@ export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
     add(f.data_vencimento, { tipo: 'fatura', descricao: `Fatura ${c.nome}`, valor: -v, lancado: f.total, estimativa: f.estimativa, pago: f.pago, fatura_id: f.id, atrasado: f.data_vencimento < hoje });
   }));
   const porMes = {};
-  for (let i = 0; i <= meses; i++) {
+  for (let i = 0; i < meses; i++) {
     const mes = addMonthKey(mes0, i);
     const ini = i === 0 ? hoje : `${mes}-01`;
     const fim = lastDayOfMonth(mes);

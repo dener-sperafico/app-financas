@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=50';
-import { MockBackend } from './mock.js?v=50';
-import { Store } from './store.js?v=50';
-import { objToRow } from './schema.js?v=50';
-import * as M from './model.js?v=50';
-import { interpretar, previstoParecido } from './parser.js?v=50';
-import { ic, icCategoria } from './icones.js?v=50';
+import { GoogleBackend, AuthError } from './google.js?v=51';
+import { MockBackend } from './mock.js?v=51';
+import { Store } from './store.js?v=51';
+import { objToRow } from './schema.js?v=51';
+import * as M from './model.js?v=51';
+import { interpretar, previstoParecido } from './parser.js?v=51';
+import { ic, icCategoria } from './icones.js?v=51';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=50';
+} from './util.js?v=51';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1999,7 +1999,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=50', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=51', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
