@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=52';
-import { SEED_CATEGORIES } from './schema.js?v=52';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=53';
+import { SEED_CATEGORIES } from './schema.js?v=53';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -230,10 +230,11 @@ const automatica = (S, l) => {
 };
 
 export function sincronizarParcelas(S, hoje = todayISO()) {
-  S.get('Lancamentos').filter(l => automatica(S, l)).forEach(l => {
+  // Só promove: quando a fatura fecha, a parcela/assinatura vira confirmada. Nunca desfaz uma confirmação
+  // feita à mão antes do fechamento (a cobrança já apareceu na fatura do banco).
+  S.get('Lancamentos').filter(l => automatica(S, l) && l.situacao === 'previsto').forEach(l => {
     const f = l.fatura_id ? faturaInfoFromId(S, l.fatura_id) : null;
-    const deve = f && f.data_fechamento <= hoje ? 'confirmado' : 'previsto';
-    if (l.situacao !== deve) S.upsert('Lancamentos', { ...l, situacao: deve });
+    if (f && f.data_fechamento <= hoje) S.upsert('Lancamentos', { ...l, situacao: 'confirmado' });
   });
 }
 
