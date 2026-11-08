@@ -1,6 +1,6 @@
 // Comunicação direta com o Google: login (Google Identity Services), Sheets, Drive e Picker.
-import { CONFIG } from './config.js?v=53';
-import { SHEETS } from './schema.js?v=53';
+import { CONFIG } from './config.js?v=56';
+import { SHEETS } from './schema.js?v=56';
 
 const TOKEN_KEY = 'af_token';
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';

@@ -505,16 +505,8 @@ svg.ic.mini { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px
 .grafico .val, .grafico-h .num { font-style: normal; }
 
 /* ---------- Leitura da fatura: já na fatura + ainda pode entrar = deve fechar ---------- */
-.leitura-fat { display: flex; flex-direction: column; gap: 6px; }
-.leitura-fat .big { font-family: var(--fonte-numero); font-weight: 600; font-size: var(--txt-numero-m); line-height: 1.2; }
-.leitura-fat .bar.fat { height: 10px; margin: 2px 0; }
-.leitura-fat .leg { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); font-size: var(--txt-apoio); }
-.leitura-fat .leg .num { font-size: var(--txt-apoio); }
-.leitura-fat .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--cor-violeta); margin-right: 8px; vertical-align: -1px; }
-.leitura-fat .ponto.prev { background: var(--cor-violeta); opacity: .35; }
-.fat-item { align-items: flex-start; }
-.fat-item .meio { gap: var(--esp-2); }
-.fat-item .leitura-fat .big { font-size: var(--txt-numero-p); }
+.fat-item { align-items: center; }
+.fat-item .meio { gap: 2px; }
 .fat-item > svg.ic { margin-top: 2px; color: var(--cor-texto-3); }
 .section-title .small { font-size: var(--txt-legenda); }
 
@@ -558,10 +550,6 @@ button.alerta:first-child { border-top: 0; }
 .seg label { position: relative; min-width: 0; }
 .alcance { min-width: 0; }
 .alcance .rotulo { font-size: var(--txt-apoio); font-weight: 700; color: var(--cor-texto-2); }
-.leitura-fat .leg.pago { color: var(--cor-positivo); }
-.leitura-fat .leg.pago svg.ic { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
-.leitura-fat .leg.falta { font-weight: 700; border-top: 1px solid var(--cor-borda); padding-top: 6px; }
-.leitura-fat .leg.falta .num { font-weight: 700; }
 .nao-orcar { border: 1px solid var(--cor-borda); background: var(--cor-superficie); }
 .nao-orcar .rotulo { font-weight: 700; }
 .nao-orcar .check { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--txt-apoio); }
@@ -573,3 +561,29 @@ button.alerta:first-child { border-top: 0; }
 .lanc-fut { margin-top: var(--esp-6); }
 .lanc-fut .corpo { gap: 0; }
 .lanc-fut .corpo .dia:first-child { margin-top: 0; }
+
+/* Faturas: valor com rótulo, barra em três tons e a conta da fatura */
+.fat-card { display: flex; flex-direction: column; gap: 10px; }
+.fat-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); }
+.fat-top h2 { margin: 0; }
+.fat-top > span:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fat-valor { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); }
+.fat-valor .big { font-family: var(--fonte-numero); font-weight: 600; font-size: var(--txt-numero-m); line-height: 1.2; }
+.fat-barra { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--cor-lavanda-leve); }
+.fat-barra i { display: block; height: 100%; }
+.fat-barra .a, .sw.a { background: var(--cor-violeta); }
+.fat-barra .b, .sw.b { background: var(--cor-violeta); opacity: .5; }
+.fat-barra .c, .sw.c { background: repeating-linear-gradient(135deg, var(--cor-lavanda) 0 4px, var(--cor-lavanda-leve) 4px 8px); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.sw.c { border: 1px solid var(--cor-violeta); opacity: .8; }
+.fat-conta { display: flex; flex-direction: column; }
+.fat-k { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--cor-borda); }
+.fat-k .t { font-weight: 700; display: flex; flex-direction: column; }
+.fat-k .t span { font-weight: 400; font-size: var(--txt-apoio); color: var(--cor-texto-2); }
+.fat-k .num { font-family: var(--fonte-numero); font-weight: 600; white-space: nowrap; }
+.fat-k.total { border-bottom: 0; border-top: 2px solid var(--cor-borda-forte); }
+.fat-k.pago { color: var(--cor-positivo); }
+.fat-k.pago .t span { color: var(--cor-positivo); }
+.fat-item .meio .t { display: flex; align-items: center; gap: var(--esp-2); flex-wrap: wrap; }
+.fat-item .r { display: flex; flex-direction: column; align-items: flex-end; }
+.item .linkish { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
