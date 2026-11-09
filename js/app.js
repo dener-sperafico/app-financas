@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=56';
-import { MockBackend } from './mock.js?v=56';
-import { Store } from './store.js?v=56';
-import { objToRow } from './schema.js?v=56';
-import * as M from './model.js?v=56';
-import { interpretar, previstoParecido } from './parser.js?v=56';
-import { ic, icCategoria } from './icones.js?v=56';
+import { GoogleBackend, AuthError } from './google.js?v=57';
+import { MockBackend } from './mock.js?v=57';
+import { Store } from './store.js?v=57';
+import { objToRow } from './schema.js?v=57';
+import * as M from './model.js?v=57';
+import { interpretar, previstoParecido } from './parser.js?v=57';
+import { ic, icCategoria } from './icones.js?v=57';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=56';
+} from './util.js?v=57';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -849,6 +849,8 @@ function partesFatura(id) {
   else if (inicio > h) p.st = { tipo: 'envio', curto: 'futura', rot: 'Deve fechar em', valor: p.deve, texto: `Compras a partir de ${fmtDate(inicio)} · fecha ${fmtDate(f.data_fechamento)}` };
   else p.st = { tipo: 'prev', curto: 'aberta', rot: 'Deve fechar em', valor: p.deve, texto: `Fecha em ${fmtDate(f.data_fechamento)} · vence ${fmtDate(f.data_vencimento)}` };
   p.aberta = p.st.curto === 'aberta' || p.st.curto === 'futura';
+  // Com pagamento antecipado, o número principal é o que falta pagar (é o que o banco mostra).
+  if (p.aberta && p.pago) { p.st.rot = 'Falta pagar'; p.st.valor = p.falta; }
   return p;
 }
 
@@ -893,7 +895,7 @@ function scrCartoes() {
           <span class="fat-top"><span><h2>${esc(c.nome)}${c.ativo ? '' : ' <span class="badge envio">fora de uso</span>'}</h2>
             <span class="small muted">${p ? `Fatura de ${monthName(p.f.mes, false)} · vence ${fmtDate(p.f.data_vencimento)}` : `${esc(c.titular)} · fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}`}</span></span>
             ${p ? `<span class="badge ${p.st.tipo}">${p.st.curto}</span>` : ic('chevron-right')}</span>
-          ${p ? `${valorFatura(p)}${barraFatura(p)}<span class="small muted">${p.aberta ? `${money(p.vConf)} já na fatura · fecha em ${fmtDate(p.f.data_fechamento)}` : p.st.texto}</span>` : '<span class="small muted">Nenhuma fatura aberta.</span>'}
+          ${p ? `${valorFatura(p)}${barraFatura(p)}<span class="small muted">${p.aberta ? (p.pago ? `Deve fechar em ${money(p.deve)} · ${money(p.pago)} já pago` : `${money(p.vConf)} já na fatura · fecha em ${fmtDate(p.f.data_fechamento)}`) : p.st.texto}</span>` : '<span class="small muted">Nenhuma fatura aberta.</span>'}
         </a>`;
       }).join('') : `<div class="vazio">${ic('credit-card')}<p>Nenhum cartão cadastrado. Gastos no cartão precisam dele para saber em qual fatura e mês contam.</p></div>`}
       ${cardForm(null, 'cartao')}
@@ -2046,7 +2048,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=56', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=57', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
