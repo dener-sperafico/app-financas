@@ -1,14 +1,14 @@
 // App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=57';
-import { MockBackend } from './mock.js?v=57';
-import { Store } from './store.js?v=57';
-import { objToRow } from './schema.js?v=57';
-import * as M from './model.js?v=57';
-import { interpretar, previstoParecido } from './parser.js?v=57';
-import { ic, icCategoria } from './icones.js?v=57';
+import { GoogleBackend, AuthError } from './google.js?v=58';
+import { MockBackend } from './mock.js?v=58';
+import { Store } from './store.js?v=58';
+import { objToRow } from './schema.js?v=58';
+import * as M from './model.js?v=58';
+import { interpretar, previstoParecido } from './parser.js?v=58';
+import { ic, icCategoria } from './icones.js?v=58';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=57';
+} from './util.js?v=58';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -100,12 +100,13 @@ function screen(r) {
     case 'cartao': return scrCartao(r.arg);
     case 'categorias': return scrCategorias();
     case 'saldo': return scrSaldo();
+    case 'orcamentos': return scrOrcamentos(r.arg || monthOf(hoje()));
     default: return scrInicio();
   }
 }
 
 function nav(r) {
-  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup', 'compartilhar'].includes(r.name);
+  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup', 'compartilhar', 'orcamentos'].includes(r.name);
   // No celular, Futuro é aberto pela Início; a aba Início fica marcada.
   const ativo = {
     inicio: r.name === 'inicio' || r.name === 'pendentes' || (r.name === 'futuro' && !DESK()),
@@ -257,6 +258,42 @@ function scrSetup(step) {
 }
 
 
+// Orçamentos: editar o orçado de qualquer mês, categoria por categoria. Só o que foi alterado é gravado;
+// "copiar" leva as alterações também para os 12 meses seguintes.
+function scrOrcamentos(mes) {
+  const ant = addMonthKey(mes, -1);
+  const grupo = (tipo, titulo) => {
+    const cs = M.categorias(S, { tipo }).filter(c => !c.sistema);
+    if (!cs.length) return '';
+    let tot = 0;
+    const campos = cs.map(c => {
+      const v = M.orcado(S, c.id, mes), va = M.orcado(S, c.id, ant);
+      if (v) tot += v;
+      const dica = va !== null && va !== v ? `<span class="hint">Em ${monthName(ant, false)}: ${money(va)}</span>` : va === null && v === null ? '' : '';
+      const val = v !== null ? esc(String(v).replace('.', ',')) : '';
+      return `<label class="field valor orc-campo"><span>${esc(c.nome)}</span><span class="caixa"><input name="o_${esc(c.id)}" inputmode="decimal" placeholder="sem orçado" value="${val}" data-orig="${val}"></span>${dica}</label>`;
+    }).join('');
+    return `<h2 class="section-title">${titulo}<span class="r num">${money(round2(tot))}</span></h2><div class="card stack">${campos}</div>`;
+  };
+  const res = M.resumoMes(S, mes);
+  const sobra = res.sobraOrcada;
+  return `${banners()}
+    <div class="top">${backBtn('#/mais')}</div>
+    <h1>Orçamentos</h1>
+    ${seletorMes(mes, m => `#/orcamentos/${m}`)}
+    <form class="stack" data-form="orcamentos">
+      <input type="hidden" name="mes" value="${mes}">
+      <p class="apoio">Quanto planejam por categoria em ${monthName(mes, false)}. Deixe vazio para não orçar a categoria neste mês. Orçado não mexe no saldo.</p>
+      <div class="card metrica"><span class="label">Sobra planejada em ${monthName(mes, false)}</span><span class="big num ${sobra < 0 ? 'neg' : ''}">${formatarReais(sobra)}</span><span class="apoio">Entradas orçadas menos saídas e investimentos orçados.</span></div>
+      ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}
+      <div class="btns barra-salvar" style="flex-direction:column">
+        <button class="btn primary" name="modo" value="so">Salvar ${monthName(mes, false)}</button>
+        <button class="btn" name="modo" value="repetir">Salvar e copiar as alterações para os próximos 12 meses</button>
+      </div>
+      <p class="small muted">Só as categorias que você alterou são gravadas. Na cópia, cada uma recebe o mesmo valor de ${monthName(addMonthKey(mes, 1), false)} a ${monthName(addMonthKey(mes, 12))}.</p>
+    </form>`;
+}
+
 function orcamentoInputs(mes) {
   const grupo = (tipo, titulo) => {
     const cs = M.categorias(S, { tipo }).filter(c => !c.sistema);
@@ -299,7 +336,7 @@ function scrInicio() {
     <div class="cabecalho"><span class="marca-casa"><img src="icons/oikon.svg" alt=""><span>Oikon</span></span><a class="chip" href="#/futuro">${ic('chart-no-axes-column')}Futuro</a></div>
     ${semSaldo || semOrc ? `<div class="card info stack" style="margin-bottom:var(--esp-4)"><b>Falta pouco para a casa ficar pronta</b>
       ${semSaldo ? '<a href="#/setup/saldo">Informar quanto tem na conta</a>' : ''}
-      ${semOrc ? `<a href="#/setup/orcamento">Orçar ${monthName(mes, false)}</a>` : ''}
+      ${semOrc ? `<a href="#/orcamentos/${mes}">Orçar ${monthName(mes, false)}</a>` : ''}
       ${!M.cartoes(S).length ? '<a href="#/setup/cartoes">Cadastrar os cartões</a>' : ''}</div>` : ''}
     <div class="inicio-grade">
       ${destaque(fd, res, mes)}
@@ -566,7 +603,7 @@ function scrMes(mes) {
     return `<h2 class="section-title"${tipo === 'saida' ? ' id="sec-saidas" tabindex="-1"' : ''}>${titulo}</h2>${ls.length ? `<div class="list">${ls.map(x => linhaCategoria(x, mes)).join('')}</div>` : ''}${semOrc}`;
   };
   return `${banners()}
-    <div class="top"><h1>Mês</h1></div>
+    <div class="top"><h1>Mês</h1><a class="btn" href="#/orcamentos/${mes}">${ic('calendar-range')}Editar orçamento</a></div>
     ${seletorMes(mes, m => `#/mes/${m}`)}
     ${resumoCard(res, mes)}
     <p class="small muted" style="margin-top:var(--esp-3)">Compras no cartão contam no mês da fatura. A sobra do orçado não passa para o mês seguinte. Toque numa categoria para ver os lançamentos dela.</p>
@@ -778,7 +815,7 @@ function scrMais() {
         ${ir('#/cartoes', 'credit-card', 'Cartões e faturas')}
         ${ir('#/categorias', 'tag', 'Categorias')}
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
-        ${ir('#/setup/orcamento', 'calendar-range', 'Orçar o mês atual')}
+        ${ir('#/orcamentos', 'calendar-range', 'Orçamentos')}
         ${ir('#/compartilhar', 'user-round', 'Usar junto com alguém')}
         <button class="item" data-act="tutorial" data-passo="1">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
         <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
@@ -1968,6 +2005,24 @@ const forms = {
     toast('Orçamento salvo');
     go('#/setup/compartilhar');
   },
+  orcamentos(fd, form, submitter) {
+    const mes = String(fd.get('mes'));
+    const repetir = submitter?.value === 'repetir';
+    let n = 0, erro = '';
+    form.querySelectorAll('input[name^="o_"]').forEach(inp => {
+      const txt = inp.value.trim();
+      if (txt === (inp.dataset.orig || '')) return;
+      const cat = inp.name.slice(2);
+      if (txt === '') { M.removerOrcado(S, cat, mes, repetir); n++; return; }
+      const v = parseMoney(txt);
+      if (v === null || v < 0) { erro = M.categoria(S, cat)?.nome || cat; return; }
+      M.setOrcado(S, cat, mes, v, repetir); n++;
+    });
+    if (erro) { toast(`Valor inválido em ${erro}.`); return; }
+    if (!n) { toast('Nada mudou.'); return; }
+    toast(`${n} ${n === 1 ? 'categoria salva' : 'categorias salvas'} em ${monthName(mes, false)}${repetir ? ' e nos próximos 12 meses' : ''}.`);
+    ui.forceRender = true; render();
+  },
   ajuste(fd) {
     const v = parseMoney(fd.get('real'));
     if (v === null) { toast('Informe quanto tem na conta hoje.'); return; }
@@ -2048,7 +2103,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=57', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=58', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
