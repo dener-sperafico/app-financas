@@ -1,14 +1,14 @@
-// App de finanças do casal — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=58';
-import { MockBackend } from './mock.js?v=58';
-import { Store } from './store.js?v=58';
-import { objToRow } from './schema.js?v=58';
-import * as M from './model.js?v=58';
-import { interpretar, previstoParecido } from './parser.js?v=58';
-import { ic, icCategoria } from './icones.js?v=58';
+// Oikon — telas e navegação.
+import { GoogleBackend, AuthError } from './google.js?v=59';
+import { MockBackend } from './mock.js?v=59';
+import { Store } from './store.js?v=59';
+import { objToRow } from './schema.js?v=59';
+import * as M from './model.js?v=59';
+import { interpretar, previstoParecido } from './parser.js?v=59';
+import { ic, icCategoria } from './icones.js?v=59';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=58';
+} from './util.js?v=59';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -222,7 +222,8 @@ function scrSetup(step) {
   if (step === 'saldo') {
     const v = M.cfg(S, 'saldo_inicial');
     return `${steps('saldo')}
-      <div class="top"><h1>Quanto tem hoje na conta do casal?</h1></div>
+      <div class="top"><h1>Quanto tem hoje na conta?</h1></div>
+      <p class="apoio" style="margin-bottom:var(--esp-4)">A conta de onde sai o dinheiro do dia a dia: só sua ou de quem divide as contas com você.</p>
       <form class="stack" data-form="setup-saldo">
         ${campoValor('saldo', `Saldo em ${fmtDate(hoje(), true)}`, v === undefined ? '' : v, true)}
         <p class="small muted">É o ponto de partida, antes dos lançamentos de hoje. Daqui em diante o saldo só muda com lançamentos confirmados. Orçamento não mexe no saldo.</p>
@@ -243,7 +244,7 @@ function scrSetup(step) {
     return `${steps('orcamento')}
       <div class="top"><h1>Orçamento de ${monthName(mes)}</h1></div>
       <form class="stack" data-form="setup-orcamento">
-        <p class="small muted">Quanto planejam por categoria neste mês. Deixe vazio o que não se aplica. Orçado não mexe no saldo atual.</p>
+        <p class="small muted">Quanto pode ir para cada categoria neste mês. Deixe vazio o que não se aplica. Orçado não mexe no saldo atual.</p>
         ${orcamentoInputs(mes)}
         <div class="btns" style="flex-direction:column">
           <button class="btn primary" name="modo" value="repetir">Salvar e repetir nos próximos 12 meses</button>
@@ -283,7 +284,7 @@ function scrOrcamentos(mes) {
     ${seletorMes(mes, m => `#/orcamentos/${m}`)}
     <form class="stack" data-form="orcamentos">
       <input type="hidden" name="mes" value="${mes}">
-      <p class="apoio">Quanto planejam por categoria em ${monthName(mes, false)}. Deixe vazio para não orçar a categoria neste mês. Orçado não mexe no saldo.</p>
+      <p class="apoio">Quanto pode ir para cada categoria em ${monthName(mes, false)}. Deixe vazio para não orçar a categoria neste mês. Orçado não mexe no saldo.</p>
       <div class="card metrica"><span class="label">Sobra planejada em ${monthName(mes, false)}</span><span class="big num ${sobra < 0 ? 'neg' : ''}">${formatarReais(sobra)}</span><span class="apoio">Entradas orçadas menos saídas e investimentos orçados.</span></div>
       ${grupo('saida', 'Saídas')}${grupo('investimento', 'Investimentos')}${grupo('entrada', 'Entradas')}
       <div class="btns barra-salvar" style="flex-direction:column">
@@ -573,7 +574,7 @@ function scrPendentes() {
   return `${banners()}
     <div class="top">${backBtn('#/inicio')}</div>
     <h1 class="section-title" style="margin-top:0">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}</h1>
-    ${pend.length ? `<p class="apoio" style="margin-bottom:var(--esp-4)">A data já passou e ainda não foram confirmados. Continuam contando na previsão até vocês decidirem. Para adiar, edite a data; para cancelar, exclua.</p>
+    ${pend.length ? `<p class="apoio" style="margin-bottom:var(--esp-4)">A data já passou e ainda não foram confirmados. Continuam contando na previsão até serem confirmados, adiados ou excluídos. Para adiar, edite a data; para cancelar, exclua.</p>
       <div class="list">${pend.map(pendItem).join('')}</div>`
       : `<div class="alertas"><div class="alerta">${ic('check')}<span class="txt">Tudo em dia: nada com data passada esperando confirmação.</span></div></div>`}
     ${blocoProximos()}`;
@@ -1308,7 +1309,7 @@ function faturaPanel(m) {
     ${p.prev.length ? `${sec('Previsto', money(p.vPrev), 'Ainda não apareceram na fatura do banco. Assinaturas e parcelas se confirmam sozinhas quando a fatura fecha; se já apareceram, confirme antes.')}
       <div class="list">${p.prev.map(l => `<div class="item">${icCategoria(M.categoria(S, l.categoria_id))}<button class="meio linkish" data-act="editar" data-id="${esc(l.id)}"><span class="t">${esc(l.descricao)}</span><span class="s">${fmtDate(l.data)} · ${esc(M.categoria(S, l.categoria_id)?.nome || '')}</span></button>
         <span class="r"><span class="num">${money(l.valor)}</span><button class="btn pequeno" data-act="confirmar-fat" data-id="${esc(l.id)}">Confirmar</button></span></div>`).join('')}</div>` : ''}
-    ${p.aberta && p.est.length ? `${sec('Orçado ainda não gasto', money(p.vEst), `Estimativa: o que ainda cabe no orçado de ${monthName(f.mes, false)} das categorias pagas neste cartão. Diminui conforme vocês lançam e some quando a fatura fecha.`)}
+    ${p.aberta && p.est.length ? `${sec('Orçado ainda não gasto', money(p.vEst), `Estimativa: o que ainda cabe no orçado de ${monthName(f.mes, false)} das categorias pagas neste cartão. Diminui conforme os gastos são lançados e some quando a fatura fecha.`)}
       <div class="list">${p.est.map(x => { const cm = M.catMes(S, x.categoria.id, f.mes); return `<div class="item">${icCategoria(x.categoria)}<span class="meio"><span class="t">${esc(x.categoria.nome)}</span><span class="s">orçado ${money(cm.orcado || 0)} · usado ${money(round2(cm.realizado + cm.previsto))}</span></span><span class="r"><span class="num">${money(x.valor)}</span></span></div>`; }).join('')}</div>` : ''}
     ${pagos.length ? `${sec('Pago antes do vencimento', formatarReais(-p.pago), 'Já saiu da conta e abate o valor desta fatura. Não conta no orçado: as compras já contam.')}
       <div class="list">${pagos.map(l => `<div class="item">${ic('credit-card')}<span class="meio"><span class="t">${money(l.valor)}</span><span class="s">${fmtDate(l.data)} · ${esc(M.formaNome(l.forma))}</span></span>
@@ -1412,7 +1413,7 @@ function draftForm(m) {
         : `${d.tipo === 'entrada' ? 'Entra no saldo' : 'Sai do saldo'} ${d.data > hoje() ? `em ${fmtDate(d.data)} (fica como previsto até lá)` : 'agora'}.`}
       </div>
       ${needOrc ? `<div class="card alert stack"><b>${esc(cat?.nome || '')} não tem orçado em ${monthName(mes)}</b>
-        <span class="small">Todo gasto precisa de orçado na categoria. Quanto planejam para ela neste mês? O orçado não muda o saldo atual, só a previsão.</span>
+        <span class="small">Todo gasto precisa de orçado na categoria. Quanto pode ir para ela neste mês? O orçado não muda o saldo atual, só a previsão.</span>
         <label class="field ${e.orcado ? 'err' : ''}"><span>Orçado de ${monthName(mes)}</span><input name="orcado_valor" inputmode="decimal" placeholder="0,00" value="${esc(d.orcado_valor || '')}">${e.orcado ? `<span class="error">${e.orcado}</span>` : ''}</label></div>` : ''}
       ${avisoPrevisto(m)}
       ${alcanceSerie(m, rec)}
@@ -2103,7 +2104,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=58', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=59', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
