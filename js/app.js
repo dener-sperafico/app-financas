@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=64';
-import { MockBackend } from './mock.js?v=64';
-import { Store } from './store.js?v=64';
-import { objToRow } from './schema.js?v=64';
-import * as M from './model.js?v=64';
-import { interpretar, previstoParecido } from './parser.js?v=64';
-import { ic, icCategoria } from './icones.js?v=64';
+import { GoogleBackend, AuthError } from './google.js?v=65';
+import { MockBackend } from './mock.js?v=65';
+import { Store } from './store.js?v=65';
+import { objToRow } from './schema.js?v=65';
+import * as M from './model.js?v=65';
+import { interpretar, previstoParecido } from './parser.js?v=65';
+import { ic, icCategoria } from './icones.js?v=65';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=64';
+} from './util.js?v=65';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -479,7 +479,7 @@ function lancItem(l, { data = false } = {}) {
   const quem = variasPessoas() && l.criado_por ? `<span class="q" title="Lançado por ${esc(l.criado_por)}">${esc(l.criado_por.charAt(0).toUpperCase())}</span>` : '';
   return `<button class="item lanc ${prev ? 'prev' : ''}" data-act="editar" data-id="${esc(l.id)}"><span class="ico">${icCategoria(c)}${quem}</span>
     <span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${esc(sub.join(' · '))}</span></span>
-    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? `<span class="sr-only">aguardando envio</span>${ic('refresh-cw', 'mini')}` : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${info.length ? `<span class="info">${info.join('<span class="sep" aria-hidden="true">·</span>')}</span>` : ''}</span></button>`;
+    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? '<span class="sr-only">aguardando envio</span>' : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${info.length ? `<span class="info">${info.join('<span class="sep" aria-hidden="true">·</span>')}</span>` : ''}</span></button>`;
 }
 
 // Parcela ou repetição na linha 2 do card: ícone + "3/10", ou ícone + "mensal"/"anual".
@@ -2149,7 +2149,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=64', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=65', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
