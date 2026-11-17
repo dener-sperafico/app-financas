@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=61';
-import { MockBackend } from './mock.js?v=61';
-import { Store } from './store.js?v=61';
-import { objToRow } from './schema.js?v=61';
-import * as M from './model.js?v=61';
-import { interpretar, previstoParecido } from './parser.js?v=61';
-import { ic, icCategoria } from './icones.js?v=61';
+import { GoogleBackend, AuthError } from './google.js?v=63';
+import { MockBackend } from './mock.js?v=63';
+import { Store } from './store.js?v=63';
+import { objToRow } from './schema.js?v=63';
+import * as M from './model.js?v=63';
+import { interpretar, previstoParecido } from './parser.js?v=63';
+import { ic, icCategoria } from './icones.js?v=63';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=61';
+} from './util.js?v=63';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -476,9 +476,9 @@ function lancItem(l, { data = false } = {}) {
   const selo = seloSerie(l);
   const quem = variasPessoas() && l.criado_por ? `<span class="quem" title="${esc(l.criado_por)}">${esc(l.criado_por.charAt(0).toUpperCase())}</span>` : '';
   return `<button class="item" data-act="editar" data-id="${esc(l.id)}">${icCategoria(c)}
-    <span class="meio"><span class="t">${esc(l.descricao)}${selo}</span><span class="s">${esc(sub.join(' · '))}</span></span>
+    <span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${esc(sub.join(' · '))}</span></span>
     ${quem}
-    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? `<span class="sr-only">aguardando envio</span>${ic('refresh-cw', 'mini')}` : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${badge}</span></button>`;
+    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? `<span class="sr-only">aguardando envio</span>${ic('refresh-cw', 'mini')}` : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${selo}${badge}</span></button>`;
 }
 
 // Selo de parcela ou repetição, ao lado do nome do lançamento: "3/10" com mini barra, ou "todo mês".
@@ -488,9 +488,9 @@ function seloSerie(l) {
   if (!rec) return '';
   if (rec.total_ocorrencias) {
     const pct = Math.round((l.ocorrencia / rec.total_ocorrencias) * 100);
-    return ` <span class="selo-serie parc" title="Parcela ${l.ocorrencia} de ${rec.total_ocorrencias}">${ic('layers')}<span class="num">${l.ocorrencia}/${rec.total_ocorrencias}</span><span class="mini-barra" aria-hidden="true"><i style="width:${pct}%"></i></span></span>`;
+    return `<span class="selo-serie parc" title="Parcela ${l.ocorrencia} de ${rec.total_ocorrencias}">${ic('layers')}<span class="num">${l.ocorrencia}/${rec.total_ocorrencias}</span><span class="mini-barra" aria-hidden="true"><i style="width:${pct}%"></i></span></span>`;
   }
-  return ` <span class="selo-serie rep">${ic('repeat')}${rec.repeticao === 'anual' ? 'todo ano' : 'todo mês'}</span>`;
+  return `<span class="selo-serie rep">${ic('repeat')}${rec.repeticao === 'anual' ? 'todo ano' : 'todo mês'}</span>`;
 }
 
 // Quadro da série no painel de edição: parcelas (segmentos, pagas, faltam, última) ou repetição (desde, próximas).
@@ -2151,7 +2151,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=61', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=63', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
