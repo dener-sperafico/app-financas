@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=68';
-import { MockBackend } from './mock.js?v=68';
-import { Store } from './store.js?v=68';
-import { objToRow } from './schema.js?v=68';
-import * as M from './model.js?v=68';
-import { interpretar, previstoParecido } from './parser.js?v=68';
-import { ic, icCategoria } from './icones.js?v=68';
+import { GoogleBackend, AuthError } from './google.js?v=69';
+import { MockBackend } from './mock.js?v=69';
+import { Store } from './store.js?v=69';
+import { objToRow } from './schema.js?v=69';
+import * as M from './model.js?v=69';
+import { interpretar, previstoParecido } from './parser.js?v=69';
+import { ic, icCategoria } from './icones.js?v=69';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=68';
+} from './util.js?v=69';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1249,13 +1249,20 @@ function avisoCategoria(d, mes) {
   const x = M.catMes(S, c.id, mes);
   const orc = x.orcado ?? parseMoney(d.orcado_valor);
   if (orc === null || orc === undefined) return '';
-  const usado = round2(x.realizado + x.previsto + d.valor);
+  // Parcelado: no mês conta só a parcela (as outras entram no orçado dos meses seguintes).
+  const parcelado = d.repeticao === 'parcelada' && d.vezes > 1;
+  const valorMes = parcelado ? round2(d.valor / d.vezes) : d.valor;
+  // Editando: o próprio lançamento já está somado no mês; não conta duas vezes.
+  const orig = d.id ? S.find('Lancamentos', d.id) : null;
+  const jaConta = orig && orig.categoria_id === c.id && orig.mes_orcamento === mes ? orig.valor : 0;
+  const usado = round2(x.realizado + x.previsto - jaConta + valorMes);
   const mesTxt = monthName(mes, false);
+  const nota = parcelado ? ` Conta só a 1ª parcela, de ${money(valorMes)}; as outras entram nos meses seguintes.` : '';
   if (c.tipo === 'entrada') return aviso('ok', '', `${esc(c.nome)}: ${money(usado)} de ${money(orc)} previstos em ${mesTxt}.`);
   const resto = round2(orc - usado);
-  if (resto < 0) return aviso('err', '', `${esc(c.nome)} vai passar ${money(-resto)} do orçado em ${mesTxt}.`);
-  if (orc > 0 && usado / orc >= 0.8) return aviso('warn', '', `${esc(c.nome)} fica perto do limite: sobram ${money(resto)} em ${mesTxt}.`);
-  return aviso('', '', `${esc(c.nome)}: ${money(usado)} de ${money(orc)} usados em ${mesTxt}.`);
+  if (resto < 0) return aviso('err', '', `${esc(c.nome)} vai passar ${money(-resto)} do orçado em ${mesTxt}.${nota}`);
+  if (orc > 0 && usado / orc >= 0.8) return aviso('warn', '', `${esc(c.nome)} fica perto do limite: sobram ${money(resto)} em ${mesTxt}.${nota}`);
+  return aviso('', '', `${esc(c.nome)}: ${money(usado)} de ${money(orc)} usados em ${mesTxt}.${nota}`);
 }
 
 function salvarDraft(m, acao) {
@@ -2190,7 +2197,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=68', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=69', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
