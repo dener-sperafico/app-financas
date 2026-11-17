@@ -626,3 +626,21 @@ button.alerta:first-child { border-top: 0; }
 .item.lanc .r .info svg.ic { width: 12px; height: 12px; }
 .item.lanc .r .info .sep { opacity: .5; }
 .item.lanc .r .info .pend { color: #8a5300; font-weight: 700; }
+
+/* Formulários: todos os campos com a mesma altura e o mesmo desenho (iPhone inclusive) */
+.field input, .field select { height: 52px; min-height: 52px; line-height: normal; }
+.field select {
+  -webkit-appearance: none; appearance: none; padding-right: 40px; color: var(--cor-texto);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B6680' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; background-size: 16px;
+}
+.field.valor input { font-size: 20px; }
+.field input[type="date"] { line-height: 52px; }
+.field > span:first-child { line-height: 1.2; }
+.modal form.stack { gap: var(--esp-4); }
+.modal .seg { margin-top: var(--esp-1); }
+.nota-orc { display: flex; gap: var(--esp-3); align-items: flex-start; }
+.nota-orc > svg.ic { flex: none; width: 20px; height: 20px; margin-top: 1px; color: var(--cor-violeta); }
+.meta-lanc { margin: var(--esp-1) 0 0; text-align: center; font-size: var(--txt-legenda); color: var(--cor-texto-3); }
+.nota-orc > span { flex: 1; min-width: 0; }
+#mh-t:focus { outline: none; }

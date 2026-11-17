@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=65';
-import { MockBackend } from './mock.js?v=65';
-import { Store } from './store.js?v=65';
-import { objToRow } from './schema.js?v=65';
-import * as M from './model.js?v=65';
-import { interpretar, previstoParecido } from './parser.js?v=65';
-import { ic, icCategoria } from './icones.js?v=65';
+import { GoogleBackend, AuthError } from './google.js?v=67';
+import { MockBackend } from './mock.js?v=67';
+import { Store } from './store.js?v=67';
+import { objToRow } from './schema.js?v=67';
+import * as M from './model.js?v=67';
+import { interpretar, previstoParecido } from './parser.js?v=67';
+import { ic, icCategoria } from './icones.js?v=67';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=65';
+} from './util.js?v=67';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -520,12 +520,15 @@ function quadroSerie(l) {
       <span class="small muted">Total ${money(total)}${ultima ? ` · última em ${monthShort(ultima.mes_orcamento || monthOf(ultima.data))}` : ''}${cartao ? ' (fatura)' : ''}</span>
     </div>`;
   }
-  const prox = serie.filter(x => x.situacao === 'previsto' && x.data > l.data).slice(0, 3);
+  const prox = serie.find(x => x.situacao === 'previsto' && x.data > l.data);
   const anual = rec.repeticao === 'anual';
   return `<div class="card quadro-serie">
     <span class="qs-top">${ic('repeat')}<span class="t">${anual ? 'Repete todo ano' : 'Repete todo mês'}</span><span class="num">${money(l.valor)}</span></span>
-    <span class="small muted">Desde ${fmtDate(rec.data_inicio, true)} · ${feitas.length} ${feitas.length === 1 ? 'vez realizada' : 'vezes realizadas'}${rec.encerrada_em ? ` · encerra em ${fmtDate(rec.encerrada_em, true)}` : ' · sem data para acabar'}</span>
-    ${prox.length ? `<span class="qs-prox">${prox.map(x => `<span class="chip"><b>${fmtDate(x.data)}</b> ${money(x.valor)}</span>`).join('')}</span>` : ''}
+    <span class="qs-linhas">
+      <span>Desde ${fmtDate(rec.data_inicio, true)}</span>
+      ${prox ? `<span>Próxima: <b>${fmtDate(prox.data)}</b>${prox.valor !== l.valor ? ` · <b class="num">${money(prox.valor)}</b>` : ''}</span>` : ''}
+      <span>${rec.encerrada_em ? `Termina em ${fmtDate(rec.encerrada_em, true)}` : 'Sem data para terminar'}</span>
+    </span>
   </div>`;
 }
 
@@ -1045,7 +1048,7 @@ function scrSaldo() {
 
 // Campo de valor (8.13): Outfit, alinhado à direita, prefixo R$, teclado numérico.
 function campoValor(nome, rotulo, valor = '', obrigatorio = false, extra = '') {
-  return `<label class="field valor ${extra}"><span>${rotulo}</span><span class="caixa"><input name="${nome}" inputmode="decimal" placeholder="0,00" value="${valor !== null && valor !== undefined && valor !== '' ? esc(String(valor).replace('.', ',')) : ''}" ${obrigatorio ? 'required' : ''}></span></label>`;
+  return `<label class="field valor ${extra}"><span>${rotulo}</span><span class="caixa"><input name="${nome}" inputmode="decimal" placeholder="0,00" value="${valor !== null && valor !== undefined && valor !== '' ? esc(typeof valor === 'number' ? valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(valor).replace('.', ',')) : ''}" ${obrigatorio ? 'required' : ''}></span></label>`;
 }
 
 // ---------- Cartões ----------
@@ -1103,7 +1106,9 @@ function renderModal() {
   document.body.style.overflow = 'hidden';
   // Foco só ao abrir o painel ou um campo, nunca a cada redesenho (não rouba o clique da pessoa).
   if (novo || m._focar) {
-    const f = el.querySelector('[data-foco], [autofocus]') || el.querySelector('.x');
+    // Sem campo para focar, o foco vai para o título (leitor de tela anuncia o painel; sem anel no botão de fechar).
+    const t = el.querySelector('#mh-t'); if (t) t.setAttribute('tabindex', '-1');
+    const f = el.querySelector('[data-foco], [autofocus]') || t || el.querySelector('.x');
     if (f) f.focus({ preventScroll: true });
     const caixa = el.querySelector('.modal'); if (caixa) caixa.scrollTop = 0;
     m._focar = false;
@@ -1127,7 +1132,7 @@ function interpretacao(m) {
   const fatId = d.fatura_id || (fprev && fprev.id) || '';
   const fatMes = fatId ? (M.faturaInfoFromId(S, fatId)?.mes || mes) : mes;
   const REP = { unica: 'Só desta vez', parcelada: `${d.vezes || 2} parcelas`, mensal: d.vezes ? `${d.vezes} meses` : 'Todo mês', anual: d.vezes ? `${d.vezes} anos` : 'Todo ano' };
-  const TIPOS = { saida: 'Gasto', entrada: 'Entrada', investimento: 'Investimento' };
+  const TIPOS = { saida: 'Saída', entrada: 'Entrada', investimento: 'Investimento' };
   const chip = (campo, rotulo, falta = false) => `<button type="button" class="chip ed ${falta ? 'falta' : ''} ${aberto === campo ? 'aberto' : ''}" data-act="abrir" data-campo="${campo}" aria-expanded="${aberto === campo}">${rotulo}${falta ? '' : ic('pencil')}</button>`;
   const oculto = (n, v) => `<input type="hidden" name="${n}" value="${esc(v ?? '')}">`;
   // Campos fechados vão escondidos, para o formulário sempre ter tudo.
@@ -1432,7 +1437,7 @@ function draftForm(m) {
   const situacaoPrev = isEdit && m.orig.situacao === 'previsto';
   return `${head(isEdit ? 'Editar lançamento' : 'Confira o lançamento')}
     ${!isEdit && d.texto ? `<p class="muted small">"${esc(d.texto)}" · toque em qualquer item para corrigir.</p>` : ''}
-    ${isEdit ? `<p class="small muted">Lançado por ${esc((m.orig.criado_por || '').split('@')[0] || '—')}${m.orig.criado_em ? ' em ' + new Date(m.orig.criado_em).toLocaleDateString('pt-BR') : ''}</p>${quadroSerie(m.orig)}` : ''}
+    ${isEdit ? quadroSerie(m.orig) : ''}
     <form class="stack" data-form="draft" novalidate>
       <div class="seg" role="radiogroup" aria-label="Tipo">${tipos.map(([v, l]) => `<label><input type="radio" name="tipo" value="${v}" ${d.tipo === v ? 'checked' : ''} data-change>${l}</label>`).join('')}</div>
       ${campoValor('valor', d.repeticao === 'parcelada' ? 'Valor total' : 'Valor', d.valor, false, e.valor ? 'err' : '')}${e.valor ? `<span class="error" role="alert">${e.valor}</span>` : ''}
@@ -1451,12 +1456,12 @@ function draftForm(m) {
           ${[['unica', 'Única'], ['parcelada', 'Parcelada'], ['mensal', 'Mensal'], ['anual', 'Anual']].map(([v, l]) => `<option value="${v}" ${d.repeticao === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         ${d.repeticao !== 'unica' ? `<label class="field ${e.vezes ? 'err' : ''}"><span>${d.repeticao === 'parcelada' ? 'Parcelas' : 'Quantas vezes'}</span><input name="vezes" type="number" min="${d.repeticao === 'parcelada' ? 2 : 1}" max="120" value="${d.vezes ?? ''}" placeholder="${d.repeticao === 'parcelada' ? '2' : 'sem fim'}">${e.vezes ? `<span class="error">${e.vezes}</span>` : `<span class="hint">${d.repeticao === 'parcelada' ? 'Valor total dividido igualmente' : 'Vazio = sem fim (12 meses à frente)'}</span>`}</label>` : '<span></span>'}
       </div>` : ''}
-      <div class="card info small">
-        <b>Conta no orçamento de ${cap(monthName(mes))}</b><br>
+      <div class="card info small nota-orc">${ic('calendar-range')}<span>
+        <b>Conta no orçamento de ${monthName(mes, false)}</b><br>
         ${fprev ? `Fatura ${esc(M.cartao(S, d.cartao_id)?.nome || '')} que fecha ${fmtDate((d.fatura_id && M.faturaInfoFromId(S, d.fatura_id)?.data_fechamento) || fprev.data_fechamento)} e vence ${fmtDate((d.fatura_id && M.faturaInfoFromId(S, d.fatura_id)?.data_vencimento) || fprev.data_vencimento)}. O saldo só cai quando a fatura for paga.
           <label class="field" style="margin-top:8px"><span>Fatura</span><select name="fatura_id" data-change>${fatOpts}</select></label>`
         : `${d.tipo === 'entrada' ? 'Entra no saldo' : 'Sai do saldo'} ${d.data > hoje() ? `em ${fmtDate(d.data)} (fica como previsto até lá)` : 'agora'}.`}
-      </div>
+      </span></div>
       ${needOrc ? `<div class="card alert stack"><b>${esc(cat?.nome || '')} não tem orçado em ${monthName(mes)}</b>
         <span class="small">Todo gasto precisa de orçado na categoria. Quanto pode ir para ela neste mês? O orçado não muda o saldo atual, só a previsão.</span>
         <label class="field ${e.orcado ? 'err' : ''}"><span>Orçado de ${monthName(mes)}</span><input name="orcado_valor" inputmode="decimal" placeholder="0,00" value="${esc(d.orcado_valor || '')}">${e.orcado ? `<span class="error">${e.orcado}</span>` : ''}</label></div>` : ''}
@@ -1468,6 +1473,7 @@ function draftForm(m) {
           : `<button class="btn primary" name="acao" value="salvar">Salvar alterações</button>`)
         : `<button class="btn primary" name="acao" value="salvar">Confirmar</button>`}
         ${isEdit ? `<button type="button" class="btn danger" data-act="excluir" data-id="${esc(m.orig.id)}">${ic('trash-2')}Excluir lançamento</button>` : `<button type="button" class="btn" data-act="close">Cancelar</button>`}
+        ${isEdit ? `<p class="meta-lanc">Lançado por ${esc((m.orig.criado_por || '').split('@')[0] || '—')}${m.orig.criado_em ? ' em ' + new Date(m.orig.criado_em).toLocaleDateString('pt-BR') : ''}</p>` : ''}
       </div>
     </form>`;
 }
@@ -2149,7 +2155,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=65', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=67', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
