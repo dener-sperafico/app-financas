@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=63';
-import { MockBackend } from './mock.js?v=63';
-import { Store } from './store.js?v=63';
-import { objToRow } from './schema.js?v=63';
-import * as M from './model.js?v=63';
-import { interpretar, previstoParecido } from './parser.js?v=63';
-import { ic, icCategoria } from './icones.js?v=63';
+import { GoogleBackend, AuthError } from './google.js?v=64';
+import { MockBackend } from './mock.js?v=64';
+import { Store } from './store.js?v=64';
+import { objToRow } from './schema.js?v=64';
+import * as M from './model.js?v=64';
+import { interpretar, previstoParecido } from './parser.js?v=64';
+import { ic, icCategoria } from './icones.js?v=64';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=63';
+} from './util.js?v=64';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -467,30 +467,28 @@ function lancItem(l, { data = false } = {}) {
   const c = M.categoria(S, l.categoria_id);
   const card = l.cartao_id ? M.cartao(S, l.cartao_id) : null;
   const naFila = S.queue.some(q => q.sheet === 'Lancamentos' && q.key === l.id);
-  const pend = l.situacao === 'previsto' && l.data <= hoje();
-  const badge = pend ? '<span class="badge pend">para confirmar</span>' : l.situacao === 'previsto' ? '<span class="badge prev">previsto</span>' : '';
+  const prev = l.situacao === 'previsto';
+  const pend = prev && l.data <= hoje();
+  // Linha 2 à esquerda: categoria · forma (a data só quando a lista não é agrupada por dia).
   const sub = [];
   if (data) sub.push(fmtDate(l.data));
   if (c) sub.push(c.nome);
-  sub.push(card ? `${card.nome} · fatura de ${monthShort(l.mes_orcamento)}` : M.formaNome(l.forma));
-  const selo = seloSerie(l);
-  const quem = variasPessoas() && l.criado_por ? `<span class="quem" title="${esc(l.criado_por)}">${esc(l.criado_por.charAt(0).toUpperCase())}</span>` : '';
-  return `<button class="item" data-act="editar" data-id="${esc(l.id)}">${icCategoria(c)}
+  sub.push(card ? card.nome : M.formaNome(l.forma));
+  // Linha 2 à direita: parcela/repetição e situação, em texto pequeno.
+  const info = [seloSerie(l), pend ? '<span class="pend">confirmar</span>' : prev ? '<span>previsto</span>' : ''].filter(Boolean);
+  const quem = variasPessoas() && l.criado_por ? `<span class="q" title="Lançado por ${esc(l.criado_por)}">${esc(l.criado_por.charAt(0).toUpperCase())}</span>` : '';
+  return `<button class="item lanc ${prev ? 'prev' : ''}" data-act="editar" data-id="${esc(l.id)}"><span class="ico">${icCategoria(c)}${quem}</span>
     <span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${esc(sub.join(' · '))}</span></span>
-    ${quem}
-    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? `<span class="sr-only">aguardando envio</span>${ic('refresh-cw', 'mini')}` : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${selo}${badge}</span></button>`;
+    <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${naFila ? `<span class="sr-only">aguardando envio</span>${ic('refresh-cw', 'mini')}` : ''}${formatarReais(l.valor, { sinal: l.tipo === 'entrada' })}</span>${info.length ? `<span class="info">${info.join('<span class="sep" aria-hidden="true">·</span>')}</span>` : ''}</span></button>`;
 }
 
-// Selo de parcela ou repetição, ao lado do nome do lançamento: "3/10" com mini barra, ou "todo mês".
+// Parcela ou repetição na linha 2 do card: ícone + "3/10", ou ícone + "mensal"/"anual".
 function seloSerie(l) {
   if (!l.recorrencia_id || !l.ocorrencia) return '';
   const rec = S.find('Recorrencias', l.recorrencia_id);
   if (!rec) return '';
-  if (rec.total_ocorrencias) {
-    const pct = Math.round((l.ocorrencia / rec.total_ocorrencias) * 100);
-    return `<span class="selo-serie parc" title="Parcela ${l.ocorrencia} de ${rec.total_ocorrencias}">${ic('layers')}<span class="num">${l.ocorrencia}/${rec.total_ocorrencias}</span><span class="mini-barra" aria-hidden="true"><i style="width:${pct}%"></i></span></span>`;
-  }
-  return `<span class="selo-serie rep">${ic('repeat')}${rec.repeticao === 'anual' ? 'todo ano' : 'todo mês'}</span>`;
+  if (rec.total_ocorrencias) return `<span class="ser" title="Parcela ${l.ocorrencia} de ${rec.total_ocorrencias}">${ic('layers')}<span class="sr-only">Parcela </span>${l.ocorrencia}/${rec.total_ocorrencias}</span>`;
+  return `<span class="ser">${ic('repeat')}${rec.repeticao === 'anual' ? 'anual' : 'mensal'}</span>`;
 }
 
 // Quadro da série no painel de edição: parcelas (segmentos, pagas, faltam, última) ou repetição (desde, próximas).
@@ -2151,7 +2149,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=63', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=64', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();

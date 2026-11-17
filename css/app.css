@@ -611,3 +611,18 @@ button.alerta:first-child { border-top: 0; }
 .quadro-serie { margin-bottom: var(--esp-2); }
 
 .item .r .selo-serie { margin: 0; }
+
+/* Card de lançamento: duas linhas, duas colunas. Quem lançou vira marca no ícone. */
+.item.lanc { align-items: flex-start; }
+.item.lanc .ico { position: relative; flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--cor-lavanda-leve); color: var(--cor-violeta-escuro); }
+.item.lanc .ico > svg.ic { width: 20px; height: 20px; }
+.item.lanc .ico .q { position: absolute; right: -5px; bottom: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 800; background: var(--cor-violeta); color: #fff; border: 2px solid var(--cor-superficie); }
+.item.lanc.prev .ico { background: transparent; border: 1.5px dashed var(--cor-lavanda); }
+.item.lanc .meio { align-self: center; }
+.item.lanc .r { align-self: center; gap: 4px; }
+.item.lanc.prev .r .num:not(.pos) { color: var(--cor-texto-2); }
+.item.lanc .r .info { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: var(--cor-texto-3); white-space: nowrap; }
+.item.lanc .r .info .ser { display: inline-flex; align-items: center; gap: 3px; color: var(--cor-violeta); font-weight: 700; }
+.item.lanc .r .info svg.ic { width: 12px; height: 12px; }
+.item.lanc .r .info .sep { opacity: .5; }
+.item.lanc .r .info .pend { color: #8a5300; font-weight: 700; }
