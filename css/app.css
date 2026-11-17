@@ -644,3 +644,4 @@ button.alerta:first-child { border-top: 0; }
 .meta-lanc { margin: var(--esp-1) 0 0; text-align: center; font-size: var(--txt-legenda); color: var(--cor-texto-3); }
 .nota-orc > span { flex: 1; min-width: 0; }
 #mh-t:focus { outline: none; }
+.nova-cat .btns { justify-content: flex-end; }

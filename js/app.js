@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=67';
-import { MockBackend } from './mock.js?v=67';
-import { Store } from './store.js?v=67';
-import { objToRow } from './schema.js?v=67';
-import * as M from './model.js?v=67';
-import { interpretar, previstoParecido } from './parser.js?v=67';
-import { ic, icCategoria } from './icones.js?v=67';
+import { GoogleBackend, AuthError } from './google.js?v=68';
+import { MockBackend } from './mock.js?v=68';
+import { Store } from './store.js?v=68';
+import { objToRow } from './schema.js?v=68';
+import * as M from './model.js?v=68';
+import { interpretar, previstoParecido } from './parser.js?v=68';
+import { ic, icCategoria } from './icones.js?v=68';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=67';
+} from './util.js?v=68';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1143,9 +1143,10 @@ function interpretacao(m) {
     categoria: () => {
       const cats = M.categorias(S, { tipo: d.tipo }).filter(c => !c.sistema || (c.id === d.categoria_id && c.id !== M.FORA));
       return `<label class="field ${e.categoria ? 'err' : ''}"><span>Categoria</span>
-        <select name="categoria_id" data-change data-foco><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
-        ${e.categoria ? `<span class="error" role="alert">${e.categoria}</span>` : !d.categoria_id ? `<span class="hint">${d.descricao ? `Não reconheci "${esc(d.descricao.toLowerCase())}". Qual é a categoria? (Vou lembrar da próxima vez.)` : 'Qual é a categoria?'}</span>` : ''}</label>
-        ${d.tipo === 'saida' && d.categoria_id !== M.FORA ? `<button type="button" class="btn link" data-act="fora" style="align-self:flex-start">Não se encaixa em nenhuma? Lançar fora do orçamento</button>` : ''}`;
+        <select name="categoria_id" data-change data-foco><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}<option value="__nova" ${d.criandoCat ? 'selected' : ''}>+ Criar nova categoria…</option>${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
+        ${d.criandoCat ? '' : e.categoria ? `<span class="error" role="alert">${e.categoria}</span>` : !d.categoria_id ? `<span class="hint">${d.descricao ? `Não reconheci "${esc(d.descricao.toLowerCase())}". Qual é a categoria? (Vou lembrar da próxima vez.)` : 'Qual é a categoria?'}</span>` : ''}</label>
+        ${novaCategoriaCampo(d)}
+        ${d.tipo === 'saida' && d.categoria_id !== M.FORA && !d.criandoCat ? `<button type="button" class="btn link" data-act="fora" style="align-self:flex-start">Não se encaixa em nenhuma? Lançar fora do orçamento</button>` : ''}`;
     },
     forma: () => {
       const formas = [...M.FORMAS.filter(f => f.id !== 'cartao').map(f => [f.id, f.nome]), ...(d.tipo === 'entrada' ? [] : M.cartoes(S).map(c => [`cartao:${c.id}`, `Cartão · ${c.nome}`]))];
@@ -1219,6 +1220,18 @@ function alcanceSerie(m, rec) {
     <label class="check"><input type="radio" name="alcance" value="esta" ${d.alcance !== 'proximas' ? 'checked' : ''}> Só ${parc ? 'nesta parcela' : 'neste'} (${fmtDate(m.orig.data)})</label>
     <label class="check"><input type="radio" name="alcance" value="proximas" ${d.alcance === 'proximas' ? 'checked' : ''}> ${parc ? 'Nesta e nas próximas parcelas' : 'Neste e nos próximos'} (mais ${prox.length}, até ${monthShort(ultimo.mes_orcamento || monthOf(ultimo.data))})</label>
     <span class="small muted">Nos próximos mudam valor, descrição, categoria, pagamento e o dia do mês. Os já confirmados ficam como estão.</span></div>`;
+}
+
+// Criar categoria sem sair do lançamento: nome + botão Criar. O orçado do mês é pedido logo abaixo, como sempre.
+function novaCategoriaCampo(d) {
+  if (!d.criandoCat) return '';
+  const tipo = { saida: 'saída', entrada: 'entrada', investimento: 'investimento' }[d.tipo] || 'saída';
+  const sug = d.novaCatNome ?? (d.descricao ? d.descricao.charAt(0).toUpperCase() + d.descricao.slice(1) : '');
+  return `<div class="card info stack nova-cat">
+    <label class="field"><span>Nome da nova categoria de ${tipo}</span><input name="nova_cat" value="${esc(sug)}" placeholder="Ex.: Barbeiro" data-foco maxlength="40"></label>
+    <div class="btns"><button type="button" class="btn" data-act="cancelar-nova-cat">Cancelar</button><button type="button" class="btn primary" data-act="criar-cat">Criar categoria</button></div>
+    <span class="small muted">Depois dá para trocar o ícone, as palavras e o cartão previsto em Mais › Categorias.</span>
+  </div>`;
 }
 
 // Previsto parecido com o novo lançamento: só avisa e oferece abrir o previsto (não confirma nada sozinho).
@@ -1443,9 +1456,10 @@ function draftForm(m) {
       ${campoValor('valor', d.repeticao === 'parcelada' ? 'Valor total' : 'Valor', d.valor, false, e.valor ? 'err' : '')}${e.valor ? `<span class="error" role="alert">${e.valor}</span>` : ''}
       <label class="field"><span>Descrição</span><input name="descricao" value="${esc(d.descricao || '')}"></label>
       <label class="field ${e.categoria ? 'err' : ''}"><span>Categoria${d.categoriaSugerida && !isEdit ? ' · sugerida' : ''}</span>
-        <select name="categoria_id" data-change><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
+        <select name="categoria_id" data-change><option value="">Escolha a categoria</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === d.categoria_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}<option value="__nova" ${d.criandoCat ? 'selected' : ''}>+ Criar nova categoria…</option>${d.tipo === 'saida' ? `<optgroup label="Sem categoria"><option value="${M.FORA}" ${d.categoria_id === M.FORA ? 'selected' : ''}>Fora do orçamento (sem orçado)</option></optgroup>` : ''}</select>
         ${e.categoria ? `<span class="error">${e.categoria}</span>` : ''}
-        ${!d.categoria_id && !isEdit ? `<span class="hint">Categoria não reconhecida. A escolha ensina o app para as próximas vezes.</span>` : ''}</label>
+        ${!d.categoria_id && !isEdit && !d.criandoCat ? `<span class="hint">Categoria não reconhecida. A escolha ensina o app para as próximas vezes.</span>` : ''}</label>
+      ${novaCategoriaCampo(d)}
       <label class="field ${e.forma ? 'err' : ''}"><span>Pagamento</span>
         <select name="forma" data-change>${precisaCartao ? `<option value="cartao:" selected>Escolha o cartão</option>` : ''}${formas.map(([v, l]) => `<option value="${esc(v)}" ${v === formaVal ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
         ${e.forma ? `<span class="error">${e.forma}</span>` : ''}
@@ -1488,7 +1502,9 @@ function readDraft(form, m) {
     if (c && c.tipo !== tipo) d.categoria_id = '';
     if (tipo === 'entrada' && d.forma === 'cartao') { d.forma = 'pix'; d.cartao_id = ''; }
   } else {
-    const nova = fd.get('categoria_id') || '';
+    let nova = fd.get('categoria_id') || '';
+    if (nova === '__nova') { d.criandoCat = true; nova = ''; } else if (fd.has('categoria_id')) d.criandoCat = false;
+    if (fd.has('nova_cat')) d.novaCatNome = String(fd.get('nova_cat'));
     if (nova !== d.categoria_id && d.formaAuto && !d.id) {
       const fp = M.formaPrevista(S, nova);
       if (fp && d.tipo !== 'entrada') { d.forma = fp.forma; d.cartao_id = fp.cartao_id; d.fatura_id = ''; d.formaTrocada = true; }
@@ -1863,6 +1879,23 @@ const actions = {
     renderModal();
   },
   composicao() { openModal({ type: 'composicao' }); },
+  'criar-cat'(el) {
+    const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m);
+    const nome = String(m.d.novaCatNome || '').trim().replace(/\s+/g, ' ');
+    if (!nome) { toast('Dê um nome para a categoria'); return; }
+    const tipo = m.d.tipo || 'saida';
+    const igual = M.categorias(S, { tipo, todas: true }).find(c => normalize(c.nome) === normalize(nome));
+    let id = igual?.id;
+    if (!id) {
+      id = `cat_${slug(nome)}_${uid('x').slice(-4)}`;
+      S.upsert('Categorias', { id, nome, tipo, repasse: false, dia_transferencia: null, sistema: false, arquivada: false, ordem: M.categorias(S, { todas: true }).length + 1, forma_prevista: '' });
+      const palavra = normalize(nome);
+      if (palavra && !S.find('Palavras', palavra)) S.upsert('Palavras', { palavra, categoria_id: id, origem: 'inicial', usos: 0 });
+    } else if (igual.arquivada) S.upsert('Categorias', { ...igual, arquivada: false });
+    m.d.categoria_id = id; m.d.criandoCat = false; m.d.novaCatNome = undefined; m.errors = null; m._focar = true;
+    renderModal(); toast(igual ? `Usando a categoria ${igual.nome}, que já existia.` : `Categoria ${nome} criada.`);
+  },
+  'cancelar-nova-cat'(el) { const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m); m.d.criandoCat = false; m.d.novaCatNome = undefined; renderModal(); },
   fora(el) { const m = ui.modal; if (!m) return; const f = el.closest('form'); if (f) readDraft(f, m); m.d.categoria_id = M.FORA; m.d.tipo = 'saida'; m.aberto = null; m.errors = null; renderModal(); },
   'proximos-mais'() { const d = ui.proximosDias || 30; ui.proximosDias = d >= 90 ? 180 : d + 30; render(); },
   rolar(el) { const a = document.getElementById(el.dataset.alvo); if (a) { a.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); a.focus({ preventScroll: true }); } },
@@ -1964,6 +1997,8 @@ const forms = {
   draft(fd, form, submitter) {
     const m = ui.modal;
     readDraft(form, m);
+    // Confirmou com a nova categoria ainda aberta: cria a categoria e mostra o resto (ex.: orçado) antes de salvar.
+    if (m.d.criandoCat) { actions['criar-cat'](form); return; }
     const e = validar(m);
     if (Object.keys(e).length) {
       m.errors = e;
@@ -2155,7 +2190,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=67', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=68', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
