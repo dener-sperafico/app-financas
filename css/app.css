@@ -645,3 +645,23 @@ button.alerta:first-child { border-top: 0; }
 .nota-orc > span { flex: 1; min-width: 0; }
 #mh-t:focus { outline: none; }
 .nova-cat .btns { justify-content: flex-end; }
+.como-calc { margin-bottom: var(--esp-4); }
+.como-calc summary { cursor: pointer; color: var(--cor-violeta); font-weight: 700; font-size: var(--txt-apoio); list-style: none; }
+.como-calc summary::-webkit-details-marker { display: none; }
+.como-calc p { margin: var(--esp-2) 0 0; }
+.dia-fut .mv.reserva { display: grid; grid-template-columns: 1fr auto; column-gap: var(--esp-3); }
+.dia-fut .mv.reserva .cats { grid-column: 1 / -1; color: var(--cor-texto-3); }
+.fecho-mes { display: flex; flex-direction: column; margin-top: var(--esp-3); padding: var(--esp-3) var(--esp-4); border-radius: var(--raio-m); background: var(--cor-lavanda-leve); }
+.fecho-mes .kv { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); padding: 6px 0; font-size: var(--txt-apoio); }
+.fecho-mes .kv > span:first-child { display: flex; flex-direction: column; }
+.fecho-mes .kv .s { font-size: 12px; color: var(--cor-texto-3); }
+.fecho-mes .kv .num { font-family: var(--fonte-numero); font-weight: 600; white-space: nowrap; }
+.fecho-mes .kv.total { border-top: 1px solid var(--cor-borda-forte); margin-top: 4px; padding-top: 8px; font-weight: 800; font-size: var(--txt-texto); }
+.fecho-mes .kv.total.negativo .num { color: var(--cor-negativo); }
+.mes-fut .s.aperto { display: inline-flex; align-items: center; gap: 4px; color: #8a5300; font-weight: 700; }
+.mes-fut .s.aperto svg.ic { width: 14px; height: 14px; }
+.list .item.dia-fut.apertado, .dia-fut.apertado { background: var(--cor-atencao-fundo, #FFF4E0); border-color: transparent; }
+.mes-fut.apertado { border-left: 4px solid var(--cor-atencao, #D98E04); }
+.mes-fut.negativo { border-left: 4px solid var(--cor-negativo); }
+.fecho-mes .kv > span:first-child { font-weight: 700; }
+.fecho-mes .kv .s { font-weight: 400; }

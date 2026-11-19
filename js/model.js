@@ -1,6 +1,6 @@
 // Regras de negócio. Tudo é calculado a partir dos registros da planilha (aba "O que o app calcula").
-import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=69';
-import { SEED_CATEGORIES } from './schema.js?v=69';
+import { addMonths, addDays, daysBetween, dateOf, parseISO, monthOf, todayISO, lastDayOfMonth, addMonthKey, round2, uid, normalize } from './util.js?v=73';
+import { SEED_CATEGORIES } from './schema.js?v=73';
 
 export const AJUSTES = 'cat_ajustes';
 // Gasto que não se encaixa em nenhuma categoria: não exige orçado e não ensina palavras ao campo de lançamento.
@@ -315,9 +315,9 @@ export function fechamentoDoMes(S, mes, hoje = todayISO()) {
     const n = (Number(mes.slice(0, 4)) - Number(atual.slice(0, 4))) * 12 + Number(mes.slice(5)) - Number(atual.slice(5));
     if (n > 11) return null; // além do horizonte em que as repetições estão gravadas
     const p = projecaoDiaria(S, hoje, n + 1);
-    const dia = d => p.dias.find(x => x.data === d)?.saldo;
-    inicio = dia(vespera); fim = dia(fimMes);
-    if (inicio === undefined || fim === undefined) return null;
+    const pm = p.porMes[mes];
+    if (!pm) return null;
+    inicio = pm.saldoInicio; fim = pm.saldoFim;
   } else {
     inicio = saldoEm(S, vespera);
     fim = quando === 'atual' ? fechamentoDetalhe(S, hoje).total : saldoEm(S, fimMes);
@@ -366,6 +366,7 @@ export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
     const ini = i === 0 ? hoje : `${mes}-01`;
     const fim = lastDayOfMonth(mes);
     let livre = 0, receber = 0;
+    const cats = [];
     categorias(S).forEach(c => {
       if (c.sistema) return;
       const resto = Math.max(0, catMes(S, c.id, mes).disponivel);
@@ -374,23 +375,31 @@ export function projecaoDiaria(S, hoje = todayISO(), meses = 12) {
       // Categoria paga no cartão, com a fatura do mês ainda aberta: já está na estimativa da fatura.
       if (String(c.forma_prevista || '').startsWith('cartao:') && abertas.has(`${c.forma_prevista.slice(7)}_${mes}`)) return;
       livre += resto;
+      cats.push({ categoria: c, valor: round2(resto) });
     });
     receber = round2(receber); livre = round2(livre);
     if (receber) add(fim, { tipo: 'entrada', descricao: 'Entradas orçadas ainda sem data', valor: receber, orcado: true });
-    const dias = daysBetween(ini, fim) + 1;
-    const centavos = Math.round(livre * 100);
-    const base = Math.floor(centavos / dias);
-    porMes[mes] = { mes, ini, fim, livre, dias, porDia: base / 100, ultimoDia: (centavos - base * (dias - 1)) / 100 };
+    // O orçado livre (gastos do dia a dia, sem data) não entra nos dias: é descontado no fechamento do mês.
+    cats.sort((a, b) => b.valor - a.valor);
+    porMes[mes] = { mes, ini, fim, livre, categorias: cats };
   }
+  // Dias: só o que tem data. O orçado livre de cada mês sai no fechamento dele, então os meses
+  // seguintes já começam sem esse dinheiro.
   let saldo = saldoAtual(S);
   const dias = [];
   for (let d = hoje; d <= fimTotal; d = addDays(d, 1)) {
-    const pm = porMes[monthOf(d)];
-    const variavel = pm ? (d === pm.fim ? pm.ultimoDia : pm.porDia) : 0;
     const ms = mov.get(d) || [];
-    saldo = round2(saldo + ms.reduce((t, m) => t + m.valor, 0) - variavel);
-    dias.push({ data: d, movimentos: ms, variavel, saldo });
+    saldo = round2(saldo + ms.reduce((t, m) => t + m.valor, 0));
+    dias.push({ data: d, movimentos: ms, saldo });
+    const pm = porMes[monthOf(d)];
+    if (pm && d === pm.fim) {
+      pm.saldoDatado = saldo;                 // último dia, pelo que tem data
+      pm.saldoFim = round2(saldo - pm.livre); // deve sobrar (igual à tela inicial no mês atual)
+      saldo = pm.saldoFim;
+    }
   }
+  // Inicio de cada mês = fechamento do anterior (ou o saldo de hoje no mês atual).
+  Object.values(porMes).forEach((pm, i, arr) => { pm.saldoInicio = i === 0 ? saldoAtual(S) : arr[i - 1].saldoFim; });
   return { saldoInicial: saldoAtual(S), dias, porMes };
 }
 

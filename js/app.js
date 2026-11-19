@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=69';
-import { MockBackend } from './mock.js?v=69';
-import { Store } from './store.js?v=69';
-import { objToRow } from './schema.js?v=69';
-import * as M from './model.js?v=69';
-import { interpretar, previstoParecido } from './parser.js?v=69';
-import { ic, icCategoria } from './icones.js?v=69';
+import { GoogleBackend, AuthError } from './google.js?v=73';
+import { MockBackend } from './mock.js?v=73';
+import { Store } from './store.js?v=73';
+import { objToRow } from './schema.js?v=73';
+import * as M from './model.js?v=73';
+import { interpretar, previstoParecido } from './parser.js?v=73';
+import { ic, icCategoria } from './icones.js?v=73';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=69';
+} from './util.js?v=73';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -750,17 +750,26 @@ function scrMesCategoria(mes, catId) {
 function scrFuturo() {
   const p = M.projecaoDiaria(S);
   const meses = Object.keys(p.porMes);
-  const fechamento = meses.map(mes => ({ mes, saldo: p.dias.filter(d => d.data.startsWith(mes)).at(-1)?.saldo ?? 0 }));
+  const fechamento = meses.map(mes => ({ mes, saldo: p.porMes[mes].saldoFim ?? 0 }));
+  // Dias: só o que tem data. O aperto real é quando o orçado do dia a dia não cabe na folga do dia mais apertado.
   const menor = p.dias.reduce((a, d) => (d.saldo < a.saldo ? d : a), p.dias[0]);
   const negativos = p.dias.filter(d => d.saldo < 0);
+  const apertos = meses.map(mes => {
+    const pm = p.porMes[mes], ds = p.dias.filter(d => d.data.startsWith(mes));
+    const m = ds.reduce((a, d) => (d.saldo < a.saldo ? d : a), ds[0]);
+    return m && pm.livre && m.saldo >= 0 && m.saldo - pm.livre < 0 ? { mes, dia: m, livre: pm.livre } : null;
+  }).filter(Boolean);
   let alerta;
   if (negativos.length) {
     const ini = negativos[0].data;
     let fim = ini;
     for (const d of p.dias.slice(p.dias.indexOf(negativos[0]))) { if (d.saldo < 0) fim = d.data; else break; }
-    alerta = aviso('err', '', `O saldo fica negativo ${ini === fim ? `em ${fmtDate(ini)}` : `de ${fmtDate(ini)} a ${fmtDate(fim)}`}. Menor saldo: ${money(menor.saldo)} em ${fmtDate(menor.data)}.`);
+    alerta = aviso('err', '', `Saldo negativo ${ini === fim ? `em ${fmtDate(ini)}` : `de ${fmtDate(ini)} a ${fmtDate(fim)}`}: chega a ${money(menor.saldo)}.`);
+  } else if (apertos.length) {
+    const a = apertos[0];
+    alerta = aviso('warn', '', `Aperta em ${fmtDate(a.dia.data)}: ${money(a.dia.saldo)} na conta e ${money(a.livre)} de dia a dia ainda orçado em ${monthName(a.mes, false)}.`);
   } else {
-    alerta = aviso('', '', `Menor saldo nos próximos 12 meses: <b class="num">${money(menor.saldo)}</b> em ${fmtDate(menor.data, true)}.`);
+    alerta = '';
   }
   const pior = fechamento.reduce((a, f) => (f.saldo < a.saldo ? f : a), fechamento[0]);
   const frase = pior.saldo < 0
@@ -769,15 +778,17 @@ function scrFuturo() {
   return `${banners()}
     <div class="top">${backBtn('#/inicio')}</div>
     <h1>Futuro</h1>
-    <p class="apoio" style="margin:var(--esp-1) 0 var(--esp-4)">Quanto deve ter na conta em cada dia, pelo que está previsto e orçado.</p>
+    <p class="apoio" style="margin:var(--esp-1) 0 var(--esp-2)">Saldo previsto, dia a dia e no fim de cada mês.</p>
+    <details class="como-calc"><summary>Como é calculado</summary>
+      <p class="small muted">Nos dias, só o que tem data: salários, contas, parcelas e faturas. O orçado ainda não gasto é descontado no fim do mês (no cartão, entra na fatura). Amarelo: o dia a dia do mês não cabe no saldo daquele dia. Vermelho: saldo negativo.</p></details>
     ${alerta}
     <div class="card stack">
       <h2>Fim de cada mês</h2>
       ${graficoFechamento(fechamento)}
-      <p class="small muted">${frase} Valores do saldo no último dia de cada mês. Toque num mês para ver os dias.</p>
+      <p class="small muted">${frase} Toque num mês para ver os dias.</p>
     </div>
-    <div class="meses-fut secao">${meses.map(mes => blocoMesFuturo(p, mes)).join('')}</div>
-    <p class="small muted secao">Gasto com data sai no dia dele. O que ainda sobra do orçado sem data é espalhado por igual pelos dias do mês; nas categorias pagas no cartão, entra na fatura. Meses sem orçado mostram só o que já está previsto.</p>`;
+    <div class="meses-fut secao">${meses.map(mes => blocoMesFuturo(p, mes, apertos.find(a => a.mes === mes))).join('')}</div>
+`;
 }
 
 // Gráfico do fim de cada mês (8.16, revisto em 29/10): sempre com o valor de cada mês à vista.
@@ -814,35 +825,40 @@ function graficoFechamento(fs) {
   return horizontal + vertical;
 }
 
-function blocoMesFuturo(p, mes) {
+function blocoMesFuturo(p, mes, aperto) {
   const pm = p.porMes[mes];
   const dias = p.dias.filter(d => d.data.startsWith(mes));
   if (!dias.length) return '';
   const fim = dias.at(-1);
-  const menor = dias.reduce((a, d) => (d.saldo < a.saldo ? d : a), dias[0]);
   const hojeISO = hoje();
-  // Mostra os dias com movimento, o primeiro (hoje), o de menor saldo e o último do mês.
-  const mostrar = dias.filter(d => d.movimentos.length || d.data === hojeISO || d === menor || d === fim);
+  const mostrar = dias.filter(d => d.movimentos.length || d.data === hojeISO || d === fim);
+  // Cores: vermelho = saldo negativo; amarelo = o dia a dia ainda orçado do mês não cabe no saldo do dia.
+  const cor = d => d.saldo < 0 ? 'negativo' : pm.livre && d.saldo - pm.livre < 0 ? 'apertado' : '';
   const linha = d => {
-    const movs = d.movimentos.map(m => `<span class="mv"><span>${esc(m.descricao)}${m.atrasado ? ' <span class="badge pend">atrasado</span>' : ''}${m.tipo === 'fatura' && m.estimativa ? `<span class="s"> · ${money(m.lancado)} lançado + ${money(m.estimativa)} estimado</span>` : ''}${m.tipo === 'fatura' && m.pago ? `<span class="s"> · ${money(m.pago)} já pago antes</span>` : ''}</span><span class="num ${m.valor > 0 ? 'pos' : ''}">${formatarReais(m.valor, { sinal: true })}</span></span>`).join('');
-    const marcas = [d === menor && dias.length > 1 ? '<span class="badge prev">menor saldo do mês</span>' : '', d === fim ? '<span class="badge envio">fim do mês</span>' : ''].join(' ');
-    return `<div class="item dia-fut ${d.saldo < 0 ? 'negativo' : ''}">
-      <span class="meio"><span class="t">${d.data === hojeISO ? 'Hoje' : rotuloDia(d.data)} ${marcas}</span>${movs ? `<span class="mvs">${movs}</span>` : ''}</span>
-      <span class="r"><span class="num ${d.saldo < 0 ? 'neg' : ''}">${money(d.saldo)}</span><span class="small muted">no fim do dia</span></span></div>`;
+    const movs = d.movimentos.map(m => `<span class="mv"><span>${esc(m.descricao)}${m.atrasado ? ' <span class="badge pend">atrasado</span>' : ''}${m.tipo === 'fatura' && m.estimativa ? `<span class="s"> · ${money(m.lancado)} + ${money(m.estimativa)} estimado</span>` : ''}${m.tipo === 'fatura' && m.pago ? `<span class="s"> · ${money(m.pago)} já pago</span>` : ''}</span><span class="num ${m.valor > 0 ? 'pos' : ''}">${formatarReais(m.valor, { sinal: true })}</span></span>`).join('');
+    return `<div class="item dia-fut ${cor(d)}">
+      <span class="meio"><span class="t">${d.data === hojeISO ? 'Hoje' : rotuloDia(d.data)}</span>${movs ? `<span class="mvs">${movs}</span>` : ''}</span>
+      <span class="r"><span class="num ${d.saldo < 0 ? 'neg' : ''}">${money(d.saldo)}</span></span></div>`;
   };
-  // Acordeão: fechado mostra o fim do mês e o menor saldo; aberto mostra os dias. O mês atual começa aberto.
+  const cats = pm.categorias || [];
+  const catsTxt = cats.length ? cats.slice(0, 2).map(x => esc(x.categoria.nome)).join(', ') + (cats.length > 2 ? ` e mais ${cats.length - 2}` : '') : '';
+  const fecho = `<div class="fecho-mes">
+    <div class="kv"><span>Último dia<span class="s">só o que tem data</span></span><span class="num">${money(pm.saldoDatado)}</span></div>
+    ${pm.livre ? `<div class="kv"><span>Dia a dia<span class="s">${catsTxt}</span></span><span class="num">${formatarReais(-pm.livre)}</span></div>` : ''}
+    <div class="kv total ${pm.saldoFim < 0 ? 'negativo' : ''}"><span>${pm.saldoFim < 0 ? 'Deve faltar' : 'Deve sobrar'}</span><span class="num">${money(Math.abs(pm.saldoFim))}</span></div>
+  </div>`;
+  const estado = dias.some(d => d.saldo < 0) || pm.saldoFim < 0 ? 'negativo' : aperto ? 'apertado' : '';
   if (!ui.futuroAbertos) ui.futuroAbertos = new Set([monthOf(hojeISO)]);
   const aberto = ui.futuroAbertos.has(mes);
-  return `<details class="mes-fut" id="mes-${mes}" data-mes="${mes}" ${aberto ? 'open' : ''}>
+  return `<details class="mes-fut ${estado}" id="mes-${mes}" data-mes="${mes}" ${aberto ? 'open' : ''}>
     <summary>
-      <span class="meio"><span class="t">${cap(monthName(mes))}</span>
-        <span class="s">Menor saldo: <span class="num ${menor.saldo < 0 ? 'neg' : ''}">${money(menor.saldo)}</span> em ${fmtDate(menor.data)}</span></span>
-      <span class="r"><span class="small muted">${fim.saldo < 0 ? 'deve faltar' : 'deve sobrar'}</span><span class="num ${fim.saldo < 0 ? 'neg' : ''}">${money(Math.abs(fim.saldo))}</span></span>
+      <span class="meio"><span class="t">${cap(monthName(mes))}</span></span>
+      <span class="r"><span class="small muted">${pm.saldoFim < 0 ? 'deve faltar' : 'deve sobrar'}</span><span class="num ${pm.saldoFim < 0 ? 'neg' : ''}">${money(Math.abs(pm.saldoFim))}</span></span>
       ${ic('chevron-down', 'seta')}
     </summary>
     <div class="corpo">
-      ${pm && pm.livre ? `<p class="small muted">Gastos do dia a dia, pelo orçado ainda livre: ${money(pm.livre)}, cerca de ${money(pm.porDia)} por dia.</p>` : ''}
       <div class="list">${mostrar.map(linha).join('')}</div>
+      ${fecho}
     </div>
   </details>`;
 }
@@ -2197,7 +2213,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=69', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=73', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
