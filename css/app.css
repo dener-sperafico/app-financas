@@ -678,3 +678,6 @@ button.alerta:first-child { border-top: 0; }
 .top-titulo { display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3); margin-bottom: var(--esp-4); }
 .top-titulo h1 { margin: 0; }
 .add-centro { display: flex; justify-content: center; margin-top: var(--esp-2); }
+.fecho-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--cor-texto-3); margin-bottom: 2px; }
+.fecho-mes .ajuda-txt { margin: 4px 0 6px; background: var(--cor-superficie); }
+.ajuda-lista { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }

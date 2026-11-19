@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=77';
-import { MockBackend } from './mock.js?v=77';
-import { Store } from './store.js?v=77';
-import { objToRow } from './schema.js?v=77';
-import * as M from './model.js?v=77';
-import { interpretar, previstoParecido } from './parser.js?v=77';
-import { ic, icCategoria } from './icones.js?v=77';
+import { GoogleBackend, AuthError } from './google.js?v=78';
+import { MockBackend } from './mock.js?v=78';
+import { Store } from './store.js?v=78';
+import { objToRow } from './schema.js?v=78';
+import * as M from './model.js?v=78';
+import { interpretar, previstoParecido } from './parser.js?v=78';
+import { ic, icCategoria } from './icones.js?v=78';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=77';
+} from './util.js?v=78';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -794,7 +794,10 @@ function scrFuturo() {
     <h1>Futuro</h1>
     <p class="apoio" style="margin:var(--esp-1) 0 var(--esp-2)">Saldo previsto, dia a dia e no fim de cada mês.</p>
     <p style="margin:0 0 var(--esp-3)">${ajudaBtn('futuro', 'Como é calculado')}</p>
-    ${ajudaTxt('futuro', `Nos dias, só o que tem data: salários, contas, parcelas e faturas. O orçado ainda não gasto é descontado no fim do mês (no cartão, entra na fatura). Amarelo: o dia a dia do mês não cabe no saldo daquele dia. Vermelho: saldo negativo.`)}
+    ${ajudaTxt('futuro', `<ul class="ajuda-lista">
+      <li><b>Cada dia</b> mostra o saldo só com o que tem data marcada: salários, contas, parcelas e faturas.</li>
+      <li><b>O que você orçou e ainda não gastou</b> (mercado, lazer…) não tem data. Por isso entra só no fim de cada mês, no "deve sobrar".</li>
+      <li><b>Amarelo:</b> nesse dia, o saldo não cobre o que ainda falta gastar no mês. <b>Vermelho:</b> saldo negativo.</li></ul>`)}
     ${alerta}
     <div class="card stack">
       <h2>Fim de cada mês</h2>
@@ -857,8 +860,10 @@ function blocoMesFuturo(p, mes, aperto) {
   const cats = pm.categorias || [];
   const catsTxt = cats.length ? cats.slice(0, 2).map(x => esc(x.categoria.nome)).join(', ') + (cats.length > 2 ? ` e mais ${cats.length - 2}` : '') : '';
   const fecho = `<div class="fecho-mes">
-    <div class="kv"><span>Último dia<span class="s">só o que tem data</span></span><span class="num">${money(pm.saldoDatado)}</span></div>
-    ${pm.livre ? `<div class="kv"><span>Dia a dia<span class="s">${catsTxt}</span></span><span class="num">${formatarReais(-pm.livre)}</span></div>` : ''}
+    <div class="fecho-top"><span>Como fecha ${monthName(mes, false)}</span>${ajudaBtn(`fecho-${mes}`)}</div>
+    ${ajudaTxt(`fecho-${mes}`, `Começa pelo saldo em ${fmtDate(pm.fim)}, contando só o que tem data. Daí sai o que você orçou para ${monthName(mes, false)} e ainda não gastou${catsTxt ? ` (${catsTxt})` : ''}. O que sobra é o "deve sobrar", o mesmo número da tela inicial. Se gastar menos, sobra mais.`)}
+    <div class="kv"><span>Saldo em ${fmtDate(pm.fim)}<span class="s">só o que tem data</span></span><span class="num">${money(pm.saldoDatado)}</span></div>
+    ${pm.livre ? `<div class="kv"><span>Ainda a gastar<span class="s">orçado do mês · ${catsTxt}</span></span><span class="num">${formatarReais(-pm.livre)}</span></div>` : ''}
     <div class="kv total ${pm.saldoFim < 0 ? 'negativo' : ''}"><span>${pm.saldoFim < 0 ? 'Deve faltar' : 'Deve sobrar'}</span><span class="num">${money(Math.abs(pm.saldoFim))}</span></div>
   </div>`;
   const estado = dias.some(d => d.saldo < 0) || pm.saldoFim < 0 ? 'negativo' : aperto ? 'apertado' : '';
@@ -2239,7 +2244,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=77', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=78', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
