@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=78';
-import { MockBackend } from './mock.js?v=78';
-import { Store } from './store.js?v=78';
-import { objToRow } from './schema.js?v=78';
-import * as M from './model.js?v=78';
-import { interpretar, previstoParecido } from './parser.js?v=78';
-import { ic, icCategoria } from './icones.js?v=78';
+import { GoogleBackend, AuthError } from './google.js?v=79';
+import { MockBackend } from './mock.js?v=79';
+import { Store } from './store.js?v=79';
+import { objToRow } from './schema.js?v=79';
+import * as M from './model.js?v=79';
+import { interpretar, previstoParecido } from './parser.js?v=79';
+import { ic, icCategoria } from './icones.js?v=79';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=78';
+} from './util.js?v=79';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -463,8 +463,12 @@ function pendItem(p) {
   const l = p.item;
   const c = M.categoria(S, l.categoria_id);
   const dias = Math.max(0, daysBetween(l.data, hoje()));
+  // No cartão: confirmar só marca na fatura (não mexe no saldo); sem confirmação, confirma sozinho no fechamento.
+  const f = l.forma === 'cartao' && l.fatura_id ? M.faturaInfoFromId(S, l.fatura_id) : null;
+  const card = f ? M.cartao(S, f.cartao_id) : null;
+  const sub = f ? `${fmtDate(l.data)} · ${esc(card?.nome || 'Cartão')} · fatura de ${monthShort(f.mes)}` : `${fmtDate(l.data)} · ${dias ? `há ${dias} ${dias === 1 ? 'dia' : 'dias'}` : 'hoje'} · ${esc(M.formaNome(l.forma))}`;
   return `<div class="item">
-    <button class="abrir" data-act="editar" data-id="${esc(l.id)}">${icCategoria(c)}<span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${fmtDate(l.data)} · ${dias ? `há ${dias} ${dias === 1 ? 'dia' : 'dias'}` : 'hoje'} · ${esc(M.formaNome(l.forma))}</span></span></button>
+    <button class="abrir" data-act="editar" data-id="${esc(l.id)}">${icCategoria(c)}<span class="meio"><span class="t">${esc(l.descricao)}</span><span class="s">${sub}</span></span></button>
     <span class="r"><span class="num ${l.tipo === 'entrada' ? 'pos' : ''}">${formatarReais(l.tipo === 'entrada' ? l.valor : l.valor, { sinal: l.tipo === 'entrada' })}</span><button class="btn pequeno" data-act="confirmar" data-id="${esc(l.id)}">${ic('check')}Confirmar</button></span></div>`;
 }
 
@@ -635,7 +639,7 @@ function scrPendentes() {
     <div class="top">${backBtn('#/inicio')}</div>
     <h1 class="section-title" style="margin-top:0">Para confirmar ${pend.length ? `<span class="contador">${pend.length}</span>` : ''}</h1>
     ${pend.length ? `<p class="apoio" style="margin-bottom:var(--esp-4)">Data passada, ainda não confirmados. ${ajudaBtn('pend')}</p>
-      ${ajudaTxt('pend', 'Continuam contando na previsão até você decidir. Confirme se aconteceu como previsto. Para adiar, abra e mude a data; para cancelar, exclua.')}
+      ${ajudaTxt('pend', 'Continuam contando na previsão até você decidir. Confirme se aconteceu como previsto. Para adiar, abra e mude a data; para cancelar, exclua. Assinaturas e parcelas no cartão: confirmar só marca na fatura (não mexe no saldo); se não confirmar, elas se confirmam sozinhas quando a fatura fecha.')}
       <div class="list">${pend.map(pendItem).join('')}</div>`
       : `<div class="alertas"><div class="alerta">${ic('check')}<span class="txt">Tudo em dia: nada com data passada esperando confirmação.</span></div></div>`}
     ${blocoProximos()}`;
@@ -1070,7 +1074,7 @@ function scrCategorias() {
 
 function scrSaldo() {
   const saldo = M.saldoAtual(S);
-  const pend = M.pendentes(S);
+  const pend = M.pendentes(S, hoje(), { cartao: false }).filter(p => p.kind === 'lanc');
   return `${banners()}
     <div class="top">${backBtn('#/inicio')}</div>
     <h1>Ajustar saldo</h1>
@@ -1915,7 +1919,12 @@ const actions = {
   'notice-ok'(el) { S.notices = S.notices.filter(n => String(n.id) !== el.dataset.id); render(); },
   'faturas-futuras'(el) { ui.faturasFuturas = el.dataset.id; ui.forceRender = true; render(); },
   'confirmar-fat'(el) { const l = S.find('Lancamentos', el.dataset.id); if (l) { M.confirmar(S, l); toast(`Confirmado na fatura: ${l.descricao}, ${money(l.valor)}.`); renderModal(); } },
-  confirmar(el) { const l = S.find('Lancamentos', el.dataset.id); if (l) { M.confirmar(S, l); toast(`Confirmado: ${l.descricao.toLowerCase()}, ${money(l.valor)}.`); } },
+  confirmar(el) {
+    const l = S.find('Lancamentos', el.dataset.id); if (!l) return;
+    M.confirmar(S, l);
+    const f = l.forma === 'cartao' && l.fatura_id ? M.faturaInfoFromId(S, l.fatura_id) : null;
+    toast(f ? `Confirmado na fatura de ${monthName(f.mes, false)}: ${l.descricao.toLowerCase()}, ${money(l.valor)}.` : `Confirmado: ${l.descricao.toLowerCase()}, ${money(l.valor)}.`);
+  },
   abrir(el) {
     const m = ui.modal; if (!m) return;
     const form = el.closest('form'); if (form) readDraft(form, m);
@@ -2244,7 +2253,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=78', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=79', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
