@@ -1,14 +1,14 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=79';
-import { MockBackend } from './mock.js?v=79';
-import { Store } from './store.js?v=79';
-import { objToRow } from './schema.js?v=79';
-import * as M from './model.js?v=79';
-import { interpretar, previstoParecido } from './parser.js?v=79';
-import { ic, icCategoria } from './icones.js?v=79';
+import { GoogleBackend, AuthError } from './google.js?v=81';
+import { MockBackend } from './mock.js?v=81';
+import { Store } from './store.js?v=81';
+import { objToRow } from './schema.js?v=81';
+import * as M from './model.js?v=81';
+import { interpretar, previstoParecido } from './parser.js?v=81';
+import { ic, icCategoria } from './icones.js?v=81';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=79';
+} from './util.js?v=81';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -1043,8 +1043,8 @@ function scrCartao(id) {
   const cats = M.categoriasDoCartao(S, id);
   return `${banners()}
     <div class="top">${backBtn('#/cartoes')}</div>
-    <h1>${esc(c.nome)}</h1>
-    <p class="small muted" style="margin-top:var(--esp-1)">${esc(c.titular)} · fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</p>
+    <h1>${esc(c.nome)}${c.ativo ? '' : ' <span class="badge envio">fora de uso</span>'}</h1>
+    <p class="small muted" style="margin-top:var(--esp-1)">Fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</p>
     <h2 class="section-title">Faturas</h2>
     ${ocultas.length ? `<button class="btn link" data-act="faturas-antigas" data-id="${esc(id)}">Ver faturas anteriores (${ocultas.length})</button>` : ''}
     ${fats.length ? `<div class="list">${fats.map(f => { const p = partesFatura(f.id); return `<button class="item fat-item" data-act="fatura" data-id="${esc(f.id)}">
@@ -1052,8 +1052,7 @@ function scrCartao(id) {
         <span class="r"><span class="small muted">${p.st.rot}</span><span class="num">${money(p.st.valor)}</span></span>${ic('chevron-right')}</button>`; }).join('')}</div>` : `<div class="vazio">${ic('credit-card')}<p>Nenhuma compra neste cartão ainda.</p></div>`}
     ${futOcultas.length ? `<button class="btn link" data-act="faturas-futuras" data-id="${esc(id)}">Ver mais ${futOcultas.length} faturas futuras</button>` : ''}
     ${cats.length ? `<p class="small muted" style="margin-top:var(--esp-3)">Categorias pagas neste cartão: ${cats.map(x => esc(x.nome)).join(', ')}.</p>` : ''}
-    <div class="secao">${cardForm(c, 'cartao')}</div>
-    <p class="small muted" style="margin-top:var(--esp-3)">Para esconder o cartão, desligue "Cartão em uso".</p>`;
+    <div class="secao">${ui.editCartao === id ? cardForm(c, 'cartao') : dadosCartao(c)}</div>`;
 }
 
 function scrCategorias() {
@@ -1094,9 +1093,18 @@ function campoValor(nome, rotulo, valor = '', obrigatorio = false, extra = '') {
 }
 
 // ---------- Cartões ----------
+// Dados do cartão só para leitura; o formulário abre ao tocar em Editar.
+function dadosCartao(c) {
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  return `<div class="card stack dados-cartao">
+    <div class="row"><h2>Dados do cartão</h2><button class="btn pequeno" data-act="editar-cartao" data-id="${esc(c.id)}">${ic('pencil')}Editar</button></div>
+    <div class="calc">${kv('Titular', esc(c.titular || '—'))}${kv('Fecha', `dia ${c.dia_fechamento}`)}${kv('Vence', `dia ${c.dia_vencimento}`)}${kv('Situação', c.ativo ? 'Em uso' : 'Fora de uso')}</div>
+  </div>`;
+}
+
 function cardForm(c, formName) {
   return `<form class="card stack" data-form="${formName}">
-    <h2>${c ? 'Editar cartão' : 'Novo cartão'}</h2>
+    ${c ? `<div class="row"><h2>Editar cartão</h2><button type="button" class="btn link" data-act="editar-cartao" data-id="">Cancelar</button></div>` : '<h2>Novo cartão</h2>'}
     ${c ? `<input type="hidden" name="id" value="${esc(c.id)}">` : ''}
     <label class="field"><span>Nome</span><input name="nome" required placeholder="Ex.: Nubank Dener" value="${esc(c?.nome || '')}"><span class="hint">Do jeito que você escreve ao lançar.</span></label>
     <label class="field"><span>Titular</span><input name="titular" required value="${esc(c?.titular || '')}"></label>
@@ -1105,7 +1113,7 @@ function cardForm(c, formName) {
       <label class="field"><span>Dia de vencimento</span><input name="venc" type="number" min="1" max="31" required value="${c?.dia_vencimento ?? ''}"></label>
     </div>
     <p class="small muted">Compras a partir do fechamento vão para a fatura seguinte.</p>
-    ${c ? `<label class="check"><input type="checkbox" name="ativo" ${c.ativo ? 'checked' : ''}> Cartão em uso</label>` : ''}
+    ${c ? `<label class="check"><input type="checkbox" name="ativo" ${c.ativo ? 'checked' : ''}> Cartão em uso</label><span class="small muted">Desligado, o cartão some das opções ao lançar.</span>` : ''}
     <button class="btn primary">${c ? 'Salvar' : 'Adicionar cartão'}</button>
   </form>`;
 }
@@ -1940,6 +1948,7 @@ const actions = {
     p.hidden = !p.hidden; if (p.hidden) ui.ajudas.delete(id); else ui.ajudas.add(id);
     el.setAttribute('aria-expanded', String(!p.hidden));
   },
+  'editar-cartao'(el) { ui.editCartao = el.dataset.id || null; ui.forceRender = true; render(); if (ui.editCartao) setTimeout(() => $('form[data-form=cartao] input[name=nome]')?.focus(), 50); },
   'novo-cartao'() { ui.novoCartao = !ui.novoCartao; ui.forceRender = true; render(); if (ui.novoCartao) setTimeout(() => $('form[data-form=cartao] input[name=nome]')?.focus(), 50); },
   'fechar-toast'() { clearTimeout(ui._tt); ui.toast = null; $('#toast').innerHTML = ''; },
   'criar-cat'(el) {
@@ -2134,7 +2143,7 @@ const forms = {
     novas.forEach(p => { const ex = S.find('Palavras', p); if (!ex || ex.categoria_id !== novoId) S.upsert('Palavras', { palavra: p, categoria_id: novoId, origem: 'inicial', usos: ex?.usos || 0 }); });
     closeModal(); toast('Categoria salva');
   },
-  cartao(fd) { salvarCartao(fd); ui.novoCartao = false; ui.forceRender = true; toast('Cartão salvo'); },
+  cartao(fd) { salvarCartao(fd); ui.novoCartao = false; ui.editCartao = null; ui.forceRender = true; toast('Cartão salvo'); },
   'setup-cartao'(fd, form) { salvarCartao(fd); form.reset(); ui.forceRender = true; render(); },
   'setup-saldo'(fd) {
     const v = parseMoney(fd.get('saldo'));
@@ -2253,7 +2262,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=79', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=81', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
