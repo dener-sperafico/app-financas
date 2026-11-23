@@ -681,3 +681,12 @@ button.alerta:first-child { border-top: 0; }
 .fecho-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--cor-texto-3); margin-bottom: 2px; }
 .fecho-mes .ajuda-txt { margin: 4px 0 6px; background: var(--cor-superficie); }
 .ajuda-lista { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+
+/* Puxar para atualizar */
+html, body { overscroll-behavior-y: contain; }
+#ptr { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); z-index: 70; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--cor-superficie); color: var(--cor-texto-3); border: 1px solid var(--cor-lavanda); box-shadow: 0 6px 18px rgba(52, 40, 120, .14); opacity: 0; transform: translate(-50%, -48px); pointer-events: none; }
+#ptr svg.ic { width: 18px; height: 18px; }
+#ptr.pronto, #ptr.girando { color: var(--cor-violeta); }
+#ptr.girando svg.ic { animation: ptr-girar 800ms linear infinite; }
+@keyframes ptr-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #ptr.girando svg.ic { animation: none; } }

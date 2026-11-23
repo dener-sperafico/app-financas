@@ -1,15 +1,15 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=83';
-import { CONFIG } from './config.js?v=83';
-import { MockBackend } from './mock.js?v=83';
-import { Store } from './store.js?v=83';
-import { objToRow } from './schema.js?v=83';
-import * as M from './model.js?v=83';
-import { interpretar, previstoParecido } from './parser.js?v=83';
-import { ic, icCategoria } from './icones.js?v=83';
+import { GoogleBackend, AuthError } from './google.js?v=84';
+import { CONFIG } from './config.js?v=84';
+import { MockBackend } from './mock.js?v=84';
+import { Store } from './store.js?v=84';
+import { objToRow } from './schema.js?v=84';
+import * as M from './model.js?v=84';
+import { interpretar, previstoParecido } from './parser.js?v=84';
+import { ic, icCategoria } from './icones.js?v=84';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=83';
+} from './util.js?v=84';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -2260,6 +2260,46 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ---------- Puxar para atualizar (celular) ----------
+// Com a tela no topo, arrastar para baixo busca a planilha na hora.
+const ptr = { y0: null, dy: 0, ativo: false };
+function ptrEl() {
+  let el = $('#ptr');
+  if (!el) { el = document.createElement('div'); el.id = 'ptr'; el.setAttribute('aria-hidden', 'true'); el.innerHTML = ic('refresh-cw'); document.body.appendChild(el); }
+  return el;
+}
+function ptrMostrar(dy, pronto) {
+  const el = ptrEl(), d = Math.min(dy, 90);
+  el.style.transform = `translate(-50%, ${d - 48}px) rotate(${d * 3}deg)`;
+  el.style.opacity = String(Math.min(1, d / 50));
+  el.classList.toggle('pronto', pronto);
+}
+document.addEventListener('touchstart', ev => {
+  if (DESK() || ptr.ativo || ui.modal || !S.spreadsheet || window.scrollY > 0 || ev.touches.length !== 1) { ptr.y0 = null; return; }
+  ptr.y0 = ev.touches[0].clientY; ptr.dy = 0;
+}, { passive: true });
+document.addEventListener('touchmove', ev => {
+  if (ptr.y0 === null) return;
+  ptr.dy = (ev.touches[0].clientY - ptr.y0) * 0.5;
+  if (ptr.dy <= 0 || window.scrollY > 0) { ptr.y0 = null; ptrEl().style.opacity = '0'; return; }
+  ptrMostrar(ptr.dy, ptr.dy >= 60);
+}, { passive: true });
+document.addEventListener('touchend', async () => {
+  if (ptr.y0 === null) return;
+  ptr.y0 = null;
+  const el = ptrEl();
+  if (ptr.dy < 60) { el.style.transition = 'transform 200ms, opacity 200ms'; el.style.opacity = '0'; el.style.transform = 'translate(-50%, -48px)'; setTimeout(() => { el.style.transition = ''; }, 220); return; }
+  ptr.ativo = true;
+  el.style.transition = 'transform 200ms'; el.style.transform = 'translate(-50%, 24px)'; el.classList.add('girando');
+  const t0 = Date.now();
+  try { await sync(); } finally {
+    await new Promise(r => setTimeout(r, Math.max(0, 600 - (Date.now() - t0))));
+    el.classList.remove('girando', 'pronto'); el.style.opacity = '0'; el.style.transform = 'translate(-50%, -48px)';
+    setTimeout(() => { el.style.transition = ''; ptr.ativo = false; }, 220);
+    ui.forceRender = true; render();
+  }
+});
+
 async function boot() {
   // Voltando da tela do Google: termina o login antes de tudo.
   const volta = DEMO ? null : await B.voltaDoGoogle();
@@ -2284,7 +2324,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=83', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=84', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
