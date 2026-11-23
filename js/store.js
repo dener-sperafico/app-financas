@@ -1,7 +1,7 @@
 // Estado local, cache offline e sincronização com a planilha (fila de envio).
-import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=81';
-import { nowStamp } from './util.js?v=81';
-import { AuthError } from './google.js?v=81';
+import { SHEETS, SHEET_NAMES, KEY, rowToObj, objToRow, isValidRow } from './schema.js?v=82';
+import { nowStamp } from './util.js?v=82';
+import { AuthError } from './google.js?v=82';
 
 export const TOMBSTONE = '#excluido';
 const BATCH = 200;
@@ -160,7 +160,7 @@ export class Store {
   async flush() {
     if (this.syncing || !this.s.spreadsheet || !this.s.queue.length) return;
     if (!navigator.onLine) { this.status.online = false; this.emit(); return; }
-    if (!this.backend.hasToken()) { this.status.authNeeded = true; this.emit(); return; }
+    if (!this.backend.hasToken() && !(this.backend.garantirToken && await this.backend.garantirToken())) { this.status.authNeeded = true; this.emit(); return; }
     this.syncing = true; this.status.error = null; this.emit();
     const id = this.s.spreadsheet.id;
     try {

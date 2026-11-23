@@ -1,6 +1,6 @@
 // Modo demonstração: imita o Google guardando a "planilha" no próprio navegador.
 // Abra o app com ?demo=1 para usar. Nada é enviado para o Google.
-import { SHEETS } from './schema.js?v=81';
+import { SHEETS } from './schema.js?v=82';
 
 const KEY = 'af_mock_db';
 
@@ -18,6 +18,8 @@ export class MockBackend {
   hasToken() { return this.signed; }
   async signIn() { this.signed = true; localStorage.setItem('af_mock_signed', '1'); }
   minutesLeft() { return this.signed ? 60 : 0; }
+  temSessao() { return false; }
+  async garantirToken() { return this.signed; }
   signOut() { this.signed = false; localStorage.removeItem('af_mock_signed'); }
   async getUser() { return { email: 'demo@exemplo.com', name: 'Demo' }; }
 

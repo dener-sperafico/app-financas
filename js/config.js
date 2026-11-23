@@ -5,6 +5,8 @@ export const CONFIG = {
   API_KEY: 'AIzaSyDrvaV1FhSX3_8I4vUYVbdNMy69OHDg0z4',
   APP_ID: '251928341897',
   SCOPES: 'https://www.googleapis.com/auth/drive.file',
+  // Servidor que mantém o login (Cloudflare Worker em tools/worker). Vazio = login só pelo navegador.
+  AUTH_URL: 'https://oikon-auth.dener-sperafico.workers.dev',
   SCHEMA_VERSION: 1,
   SPREADSHEET_TITLE: 'Oikon · finanças da casa',
 };

@@ -1,8 +1,11 @@
 // Comunicação direta com o Google: login (Google Identity Services), Sheets, Drive e Picker.
-import { CONFIG } from './config.js?v=81';
-import { SHEETS } from './schema.js?v=81';
+import { CONFIG } from './config.js?v=82';
+import { SHEETS } from './schema.js?v=82';
 
 const TOKEN_KEY = 'af_token';
+const SESSAO_KEY = 'af_sessao';
+const OAUTH_KEY = 'af_oauth';
+const ler = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 
@@ -30,6 +33,88 @@ export class GoogleBackend {
     this.tokenClient = null;
     this.pending = null;
     try { this.token = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null'); } catch { this.token = null; }
+    this.sessao = CONFIG.AUTH_URL ? ler(SESSAO_KEY) : null;
+    this.renovando = null;
+  }
+
+  // ---- Login que dura (servidor em CONFIG.AUTH_URL) ----
+  // Com sessão guardada, o app pega conexões novas sozinho, sem janela do Google.
+  temSessao() { return !!this.sessao; }
+
+  _guardarToken(r) {
+    this.token = { access: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(this.token));
+  }
+
+  _esquecerSessao() {
+    this.sessao = null;
+    localStorage.removeItem(SESSAO_KEY);
+  }
+
+  async _servidor(rota, corpo) {
+    const res = await fetch(CONFIG.AUTH_URL + rota, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+    });
+    let dados = {};
+    try { dados = await res.json(); } catch { /* ignora */ }
+    return { ok: res.ok, status: res.status, dados };
+  }
+
+  // Pega uma conexão nova pelo servidor. Sessão recusada pelo Google = esquece e pede login de novo.
+  renovar() {
+    if (!this.sessao) return Promise.reject(new AuthError('sem-sessao'));
+    if (!this.renovando) {
+      this.renovando = (async () => {
+        const r = await this._servidor('/renovar', { sessao: this.sessao });
+        if (r.ok && r.dados.access_token) { this._guardarToken(r.dados); return; }
+        if (r.status === 401) this._esquecerSessao();
+        throw new AuthError(r.dados.erro || 'renovar');
+      })().finally(() => { this.renovando = null; });
+    }
+    return this.renovando;
+  }
+
+  // true se tem conexão válida (renovando pelo servidor se precisar).
+  async garantirToken() {
+    if (this.hasToken() && this.minutesLeft() > 5) return true;
+    if (!this.sessao) return this.hasToken();
+    try { await this.renovar(); } catch { /* segue com o que tiver */ }
+    return this.hasToken();
+  }
+
+  // Leva para o Google (página inteira). Ao voltar, voltaDoGoogle() termina o login.
+  _irParaGoogle(hint) {
+    const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+    const volta = location.origin + location.pathname;
+    localStorage.setItem(OAUTH_KEY, JSON.stringify({ state, volta, hash: location.hash || '' }));
+    const p = new URLSearchParams({
+      client_id: CONFIG.CLIENT_ID, redirect_uri: volta, response_type: 'code', scope: CONFIG.SCOPES,
+      access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
+    });
+    if (hint) p.set('login_hint', hint);
+    location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + p);
+    return new Promise(() => {}); // a página vai sair
+  }
+
+  // Chamado na abertura do app. Retorna null (não era volta do Google), { ok: true, hash } ou { erro }.
+  async voltaDoGoogle() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('state') || !(q.has('code') || q.has('error'))) return null;
+    let salvo = null;
+    try { salvo = JSON.parse(ler(OAUTH_KEY) || 'null'); } catch { /* ignora */ }
+    localStorage.removeItem(OAUTH_KEY);
+    history.replaceState(null, '', location.pathname + (salvo?.hash || location.hash || ''));
+    if (!salvo || salvo.state !== q.get('state')) return { erro: 'state' };
+    if (q.has('error')) return { erro: q.get('error') };
+    try {
+      const r = await this._servidor('/entrar', { code: q.get('code'), redirect_uri: salvo.volta });
+      if (!r.ok || !r.dados.access_token) return { erro: r.dados.erro || 'entrar' };
+      this._guardarToken(r.dados);
+      if (r.dados.sessao) { this.sessao = r.dados.sessao; localStorage.setItem(SESSAO_KEY, this.sessao); }
+      return { ok: true, hash: salvo.hash };
+    } catch (e) {
+      return { erro: 'rede' };
+    }
   }
 
   async init() {
@@ -63,6 +148,8 @@ export class GoogleBackend {
   // Precisa ser chamado a partir de um toque do usuário (o Google abre uma janela).
   // silent: não mostra escolha de conta nem consentimento; se o Google precisar perguntar algo, falha.
   signIn(hint, { silent = false } = {}) {
+    if (this.sessao) return this.renovar();
+    if (CONFIG.AUTH_URL && !silent) return this._irParaGoogle(hint);
     if (!this.tokenClient) return Promise.reject(new AuthError('not-ready'));
     if (this.pending) return this.pending.promise;
     let resolve, reject;
@@ -78,19 +165,26 @@ export class GoogleBackend {
   }
 
   signOut() {
-    if (this.token && window.google?.accounts?.oauth2) {
+    if (this.sessao) {
+      this._servidor('/sair', { sessao: this.sessao }).catch(() => {});
+      this._esquecerSessao();
+    } else if (this.token && window.google?.accounts?.oauth2) {
       try { google.accounts.oauth2.revoke(this.token.access, () => {}); } catch { /* ignora */ }
     }
     this.token = null;
     localStorage.removeItem(TOKEN_KEY);
   }
 
-  async api(url, opts = {}) {
-    if (!this.hasToken()) throw new AuthError('expired');
+  async api(url, opts = {}, tentou = false) {
+    if (!(await this.garantirToken())) throw new AuthError('expired');
     const res = await fetch(url, {
       ...opts,
       headers: { Authorization: `Bearer ${this.token.access}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
     });
+    if (res.status === 401 && this.sessao && !tentou) {
+      this.token = null;
+      return this.api(url, opts, true);
+    }
     if (res.status === 401) {
       this.token = null; localStorage.removeItem(TOKEN_KEY);
       throw new AuthError('expired');

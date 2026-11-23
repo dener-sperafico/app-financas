@@ -1,14 +1,15 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=81';
-import { MockBackend } from './mock.js?v=81';
-import { Store } from './store.js?v=81';
-import { objToRow } from './schema.js?v=81';
-import * as M from './model.js?v=81';
-import { interpretar, previstoParecido } from './parser.js?v=81';
-import { ic, icCategoria } from './icones.js?v=81';
+import { GoogleBackend, AuthError } from './google.js?v=82';
+import { CONFIG } from './config.js?v=82';
+import { MockBackend } from './mock.js?v=82';
+import { Store } from './store.js?v=82';
+import { objToRow } from './schema.js?v=82';
+import * as M from './model.js?v=82';
+import { interpretar, previstoParecido } from './parser.js?v=82';
+import { ic, icCategoria } from './icones.js?v=82';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=81';
+} from './util.js?v=82';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -171,6 +172,7 @@ function banners() {
   else if (st.error) out.push(aviso('err', '', 'Não consegui salvar na planilha. Seus dados estão guardados aqui.', '<button class="btn" data-act="sync">Tentar de novo</button>'));
   else if (q && S.syncing) out.push(aviso('', 'refresh-cw', `Enviando ${q} ${q === 1 ? 'alteração' : 'alterações'} para a planilha…`));
   S.notices.forEach(n => out.push(aviso('', '', esc(n.text), `<button class="btn" data-act="notice-ok" data-id="${n.id}">Entendi</button>`)));
+  if (!DEMO && CONFIG.AUTH_URL && S.user && S.spreadsheet && !B.temSessao() && !out.length) out.push(aviso('', 'shield', 'Entre uma vez de novo para o app parar de pedir login a cada hora.', '<button class="btn" data-act="manter-conectado">Entrar</button>'));
   if (S.s.invalid) out.push(aviso('warn', '', `${S.s.invalid} ${S.s.invalid === 1 ? 'linha da planilha foi ignorada por estar incompleta' : 'linhas da planilha foram ignoradas por estarem incompletas'}.`));
   return out.join('');
 }
@@ -320,9 +322,9 @@ function orcamentoInputs(mes) {
 }
 
 async function loadFound() {
-  if (!B.hasToken()) { ui.found = []; ui.foundSemConexao = true; return; }
-  ui.foundSemConexao = false;
   ui.found = [];
+  if (!B.hasToken() && !(await B.garantirToken())) { ui.foundSemConexao = true; ui.forceRender = true; render(); return; }
+  ui.foundSemConexao = false;
   try { ui.found = await B.findSpreadsheets(); } catch (e) { handleError(e); }
   ui.forceRender = true; render();
 }
@@ -1829,6 +1831,7 @@ async function atualizarNomePlanilha() {
 }
 
 async function sync() {
+  if (S.spreadsheet && !B.hasToken()) await B.garantirToken();
   if (!S.spreadsheet || !B.hasToken()) { if (S.spreadsheet && !B.hasToken()) { S.status.authNeeded = true; ui.forceRender = true; render(); } return; }
   try {
     const ESTRUTURA = '2';
@@ -1848,8 +1851,8 @@ async function sync() {
 
 // Antes de falar com o Google a partir de um toque: se a conexão venceu, renova na hora
 // (o toque permite abrir a janela do Google). Usado no primeiro acesso, onde a pessoa pode ter parado no meio.
-function garantirConexao() {
-  if (B.hasToken()) return Promise.resolve();
+async function garantirConexao() {
+  if (await B.garantirToken()) return;
   return B.signIn(S.user?.email).then(() => { S.status.authNeeded = false; auth.falhou = false; });
 }
 
@@ -1901,6 +1904,7 @@ const actions = {
     if (navStack.length > 1) history.back();
     else { navStack = []; go(el.dataset.href || '#/inicio'); }
   },
+  'manter-conectado'() { localStorage.setItem('af_manter_aviso', '1'); B.signIn(S.user?.email); },
   async reconnect() {
     try { await B.signIn(S.user?.email); auth.falhou = false; S.status.authNeeded = false; S.status.error = null; await sync(); }
     catch (e) { toast('A conexão não foi concluída. Tente de novo.'); }
@@ -2218,11 +2222,14 @@ document.addEventListener('submit', ev => {
 // os dados guardados no aparelho. O aviso com "Reconectar" só aparece se a renovação falhar.
 const auth = { emCurso: false, falhou: false };
 async function renovarConexao() {
-  if (DEMO || !S.user || !S.spreadsheet || auth.emCurso || auth.falhou || !B.tokenClient) return;
+  if (DEMO || !S.user || !S.spreadsheet || auth.emCurso || auth.falhou) return;
+  if (!B.temSessao() && !B.tokenClient) return;
   if (B.hasToken() && B.minutesLeft() > 10) return;
   auth.emCurso = true;
   try {
-    await B.signIn(S.user.email, { silent: true });
+    // Com sessão no servidor, renova sem janela; sem ela, tenta o modo silencioso do Google.
+    if (B.temSessao()) await B.renovar();
+    else await B.signIn(S.user.email, { silent: true });
     S.status.authNeeded = false; S.status.error = null;
     await sync();
   } catch (e) {
@@ -2235,6 +2242,8 @@ async function renovarConexao() {
   }
 }
 document.addEventListener('click', () => { renovarConexao(); }, true);
+// Com sessão no servidor, mantém a conexão em dia mesmo sem toque (a cada 5 min confere).
+setInterval(() => { if (B.temSessao() && document.visibilityState === 'visible') renovarConexao(); }, 5 * 60000);
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter') renovarConexao(); }, true);
 
 // ---------- Início do app ----------
@@ -2248,10 +2257,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function boot() {
+  // Voltando da tela do Google: termina o login antes de tudo.
+  const volta = DEMO ? null : await B.voltaDoGoogle();
+  if (volta?.erro) toast(volta.erro === 'access_denied' ? 'O login foi cancelado.' : 'O login não foi concluído. Tente de novo.', 'atencao');
+  if (volta?.ok) {
+    auth.falhou = false; S.status.authNeeded = false;
+    if (!S.user) {
+      try { S.setUser(await B.getUser()); ui.found = null; go('#/setup/planilha'); } catch (e) { handleError(e); }
+    } else if (volta.hash) go(volta.hash);
+    if (localStorage.getItem('af_manter_aviso')) { localStorage.removeItem('af_manter_aviso'); toast('Pronto. O app não vai mais pedir login a cada hora.', 'ok'); }
+  }
   try { await B.init(); } catch (e) { ui.bootError = 'Não foi possível carregar o login do Google. Verifique a internet e recarregue.'; }
   ui.forceRender = true; render();
   if (S.user && S.spreadsheet) {
-    if (B.hasToken()) sync();
+    if (B.hasToken() || await B.garantirToken()) sync();
     else { S.status.authNeeded = true; ui.forceRender = true; render(); }
   }
   if ('serviceWorker' in navigator && !DEMO) {
@@ -2262,7 +2281,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=81', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=82', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
