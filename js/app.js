@@ -1,15 +1,15 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=82';
-import { CONFIG } from './config.js?v=82';
-import { MockBackend } from './mock.js?v=82';
-import { Store } from './store.js?v=82';
-import { objToRow } from './schema.js?v=82';
-import * as M from './model.js?v=82';
-import { interpretar, previstoParecido } from './parser.js?v=82';
-import { ic, icCategoria } from './icones.js?v=82';
+import { GoogleBackend, AuthError } from './google.js?v=83';
+import { CONFIG } from './config.js?v=83';
+import { MockBackend } from './mock.js?v=83';
+import { Store } from './store.js?v=83';
+import { objToRow } from './schema.js?v=83';
+import * as M from './model.js?v=83';
+import { interpretar, previstoParecido } from './parser.js?v=83';
+import { ic, icCategoria } from './icones.js?v=83';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=82';
+} from './util.js?v=83';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -172,7 +172,6 @@ function banners() {
   else if (st.error) out.push(aviso('err', '', 'Não consegui salvar na planilha. Seus dados estão guardados aqui.', '<button class="btn" data-act="sync">Tentar de novo</button>'));
   else if (q && S.syncing) out.push(aviso('', 'refresh-cw', `Enviando ${q} ${q === 1 ? 'alteração' : 'alterações'} para a planilha…`));
   S.notices.forEach(n => out.push(aviso('', '', esc(n.text), `<button class="btn" data-act="notice-ok" data-id="${n.id}">Entendi</button>`)));
-  if (!DEMO && CONFIG.AUTH_URL && S.user && S.spreadsheet && !B.temSessao() && !out.length) out.push(aviso('', 'shield', 'Entre uma vez de novo para o app parar de pedir login a cada hora.', '<button class="btn" data-act="manter-conectado">Entrar</button>'));
   if (S.s.invalid) out.push(aviso('warn', '', `${S.s.invalid} ${S.s.invalid === 1 ? 'linha da planilha foi ignorada por estar incompleta' : 'linhas da planilha foram ignoradas por estarem incompletas'}.`));
   return out.join('');
 }
@@ -1904,7 +1903,6 @@ const actions = {
     if (navStack.length > 1) history.back();
     else { navStack = []; go(el.dataset.href || '#/inicio'); }
   },
-  'manter-conectado'() { localStorage.setItem('af_manter_aviso', '1'); B.signIn(S.user?.email); },
   async reconnect() {
     try { await B.signIn(S.user?.email); auth.falhou = false; S.status.authNeeded = false; S.status.error = null; await sync(); }
     catch (e) { toast('A conexão não foi concluída. Tente de novo.'); }
@@ -2225,6 +2223,12 @@ async function renovarConexao() {
   if (DEMO || !S.user || !S.spreadsheet || auth.emCurso || auth.falhou) return;
   if (!B.temSessao() && !B.tokenClient) return;
   if (B.hasToken() && B.minutesLeft() > 10) return;
+  // Conexão antiga (sem sessão no servidor): quando vence, mostra o "Reconectar" de sempre.
+  // Reconectar já cria a sessão, e daí em diante o app renova sozinho.
+  if (CONFIG.AUTH_URL && !B.temSessao()) {
+    if (!B.hasToken()) { auth.falhou = true; S.status.authNeeded = true; setTimeout(() => { ui.forceRender = true; render(); }, 0); }
+    return;
+  }
   auth.emCurso = true;
   try {
     // Com sessão no servidor, renova sem janela; sem ela, tenta o modo silencioso do Google.
@@ -2265,13 +2269,12 @@ async function boot() {
     if (!S.user) {
       try { S.setUser(await B.getUser()); ui.found = null; go('#/setup/planilha'); } catch (e) { handleError(e); }
     } else if (volta.hash) go(volta.hash);
-    if (localStorage.getItem('af_manter_aviso')) { localStorage.removeItem('af_manter_aviso'); toast('Pronto. O app não vai mais pedir login a cada hora.', 'ok'); }
   }
   try { await B.init(); } catch (e) { ui.bootError = 'Não foi possível carregar o login do Google. Verifique a internet e recarregue.'; }
   ui.forceRender = true; render();
   if (S.user && S.spreadsheet) {
     if (B.hasToken() || await B.garantirToken()) sync();
-    else { S.status.authNeeded = true; ui.forceRender = true; render(); }
+    else { S.status.authNeeded = true; if (CONFIG.AUTH_URL && !B.temSessao()) auth.falhou = true; ui.forceRender = true; render(); }
   }
   if ('serviceWorker' in navigator && !DEMO) {
     // Versão nova instalada: recarrega uma vez para usar os arquivos novos (sem precisar limpar nada).
@@ -2281,7 +2284,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=82', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=83', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
