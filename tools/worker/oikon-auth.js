@@ -15,7 +15,6 @@
 //   ACESSOS              lista de pessoas. Sem ela, o servidor não restringe ninguém.
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const APP_URL = 'https://dener-sperafico.github.io/app-financas/';
 
 export default {
@@ -89,8 +88,8 @@ export default {
       }
 
       if (rota === '/sair') {
-        const s = await abrirSessao(env, corpo.sessao);
-        if (s) await google(REVOKE_URL, { token: s.rt });
+        // Não revoga no Google: isso derrubaria o login dos outros aparelhos da mesma conta.
+        // O aparelho apaga a própria sessão; para revogar tudo, myaccount.google.com/permissions.
         return json({ ok: true });
       }
 
@@ -187,6 +186,7 @@ async function jaUsava(env, email, accessToken) {
 
 // Admin recebe junto com o token se é admin e quantos pedidos novos esperam.
 async function extras(env, email) {
+  console.log('acesso', email, ehAdmin(env, email), !!env.ACESSOS);
   if (!ehAdmin(env, email) || !env.ACESSOS) return {};
   const pessoas = await listar(env);
   return { admin: true, pendentes: pessoas.filter(p => p.novo).length };
