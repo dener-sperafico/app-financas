@@ -202,7 +202,7 @@ function scrAguardando() {
     <h1 class="assinatura"><img src="icons/oikon.svg" alt=""><span>Oikon</span></h1>
     <div class="espera stack">
       <h2>Seu acesso foi solicitado!</h2>
-      <p class="apoio">Logo você poderá usar o Oikon. Quando for liberado, o app abre sozinho aqui.</p>
+      <p class="apoio">Logo você poderá usar o Oikon.</p>
       ${email ? `<p class="small muted">Conta: ${esc(email)}</p>` : ''}
     </div>
     <button class="btn primary block" data-act="verificar-acesso" ${ui.busy ? 'disabled' : ''}>${ic('refresh-cw')}${ui.busy ? 'Verificando…' : 'Verificar agora'}</button>
