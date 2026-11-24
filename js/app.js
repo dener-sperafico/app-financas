@@ -201,8 +201,8 @@ function scrAguardando() {
   return `<div class="login">
     <h1 class="assinatura"><img src="icons/oikon.svg" alt=""><span>Oikon</span></h1>
     <div class="espera stack">
-      <h2>Seu acesso está em análise</h2>
-      <p class="apoio">Assim que for liberado, o Oikon abre sozinho.</p>
+      <h2>Seu acesso foi solicitado!</h2>
+      <p class="apoio">Logo você poderá usar o Oikon. Quando for liberado, o app abre sozinho aqui.</p>
       ${email ? `<p class="small muted">Conta: ${esc(email)}</p>` : ''}
     </div>
     <button class="btn primary block" data-act="verificar-acesso" ${ui.busy ? 'disabled' : ''}>${ic('refresh-cw')}${ui.busy ? 'Verificando…' : 'Verificar agora'}</button>
@@ -250,7 +250,7 @@ function scrAdmin() {
       </form>`;
     }
     return `<div class="pessoa">
-      <div class="meio"><span class="t">${esc(p.email)}</span><span class="s">${p.novo ? `Pediu acesso em ${quando(p.desde)}` : esc(p.nome || '')}</span></div>
+      <div class="meio"><span class="t" title="${esc(p.email)}">${esc(p.email)}</span><span class="s">${p.novo ? `Pediu acesso em ${quando(p.desde)}` : esc(p.nome || '')}</span></div>
       <button class="chave ${p.liberado ? 'on' : ''}" role="switch" aria-checked="${p.liberado}" aria-label="${p.liberado ? 'Liberado' : 'Bloqueado'}: ${esc(p.email)}" data-act="admin-chave" data-email="${esc(p.email)}"><i></i></button>
       <button class="icone" data-act="admin-editar" data-email="${esc(p.email)}" aria-label="Editar ${esc(p.email)}">${ic('pencil')}</button>
       <button class="icone" data-act="admin-excluir" data-email="${esc(p.email)}" aria-label="Excluir ${esc(p.email)}">${ic('trash-2')}</button>
@@ -992,9 +992,9 @@ function scrMais() {
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/orcamentos', 'calendar-range', 'Orçamentos')}
         ${ir('#/compartilhar', 'user-round', 'Usar junto com alguém')}
-        ${B.acesso?.admin ? `<a class="item" href="#/admin">${ic('shield')}<span class="meio"><span class="t">Admin</span><span class="s">Quem pode usar o Oikon</span></span>${B.acesso.pendentes ? `<span class="badge pend">${B.acesso.pendentes} ${B.acesso.pendentes === 1 ? 'pedido' : 'pedidos'}</span>` : ''}${ic('chevron-right')}</a>` : ''}
         <button class="item" data-act="tutorial" data-passo="1">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
         <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
+        ${B.acesso?.admin ? `<a class="item" href="#/admin">${ic('shield')}<span class="meio"><span class="t">Admin</span><span class="s">Quem pode usar o Oikon</span></span>${B.acesso.pendentes ? `<span class="badge pend">${B.acesso.pendentes} ${B.acesso.pendentes === 1 ? 'pedido' : 'pedidos'}</span>` : ''}${ic('chevron-right')}</a>` : ''}
       </div>
       <div class="card stack"><div class="label">Conta neste aparelho</div><div>${esc(S.user?.email || '')}</div>
         <button class="btn danger" data-act="logout">${ic('log-out')}Sair</button></div>

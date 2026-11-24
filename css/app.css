@@ -700,14 +700,14 @@ html, body { overscroll-behavior-y: contain; }
 .add-pessoa .field { flex: 1 1 260px; min-width: 0; margin: 0; }
 .add-pessoa .btn { flex: 1 0 auto; }
 .pessoas { padding: 0; }
-.pessoa { display: flex; align-items: center; gap: var(--esp-2); padding: 12px var(--esp-4); border-top: 1px solid var(--cor-borda); }
+.pessoa { display: flex; align-items: center; gap: 6px; padding: 12px 10px 12px var(--esp-4); border-top: 1px solid var(--cor-borda); }
 .pessoa:first-child { border-top: 0; }
 .pessoa .meio { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pessoa .t { font-weight: 600; overflow-wrap: anywhere; }
+.pessoa .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pessoa .s { font-size: var(--txt-legenda); color: var(--cor-texto-3); }
 .pessoa.editando { flex-direction: column; align-items: stretch; gap: var(--esp-3); }
 .pessoa.editando .field { margin: 0; }
-.pessoa .icone { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: none; border: 0; color: var(--cor-texto-3); cursor: pointer; }
+.pessoa .icone { flex: none; display: grid; place-items: center; width: 36px; height: 40px; border-radius: 50%; background: none; border: 0; color: var(--cor-texto-3); cursor: pointer; }
 .pessoa .icone:hover { background: var(--cor-lavanda-leve); color: var(--cor-violeta); }
 .pessoa .icone svg.ic { width: 18px; height: 18px; }
 .chave { flex: none; position: relative; width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--cor-borda-forte); cursor: pointer; transition: background 160ms; margin-right: 4px; }
