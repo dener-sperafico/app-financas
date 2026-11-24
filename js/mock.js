@@ -19,6 +19,27 @@ export class MockBackend {
   async signIn() { this.signed = true; localStorage.setItem('af_mock_signed', '1'); }
   minutesLeft() { return this.signed ? 60 : 0; }
   temSessao() { return false; }
+  // Admin de mentira, para ver as telas no modo demonstração.
+  get acesso() { return { admin: true, pendentes: this._pessoas().filter(p => p.novo).length }; }
+  get aguardando() { try { return JSON.parse(localStorage.getItem('af_mock_aguardando') || 'null'); } catch { return null; } }
+  _pessoas() {
+    try { const l = JSON.parse(localStorage.getItem('af_mock_pessoas') || 'null'); if (l) return l; } catch { /* ignora */ }
+    return [
+      { email: 'carol@exemplo.com', nome: 'Carol', liberado: true, novo: false, desde: '2026-10-27' },
+      { email: 'amigo@exemplo.com', nome: 'Amigo', liberado: true, novo: false, desde: '2026-10-30' },
+      { email: 'alguem.novo@exemplo.com', nome: 'Alguém Novo', liberado: false, novo: true, desde: '2026-11-24' },
+    ];
+  }
+  _gravarPessoas(l) { localStorage.setItem('af_mock_pessoas', JSON.stringify(l)); return l; }
+  async adminLista() { await this._lag(); return this._pessoas(); }
+  async adminSalvar(email, liberado, antigo) {
+    await this._lag();
+    const l = this._pessoas().filter(p => p.email !== (antigo || email));
+    const velho = this._pessoas().find(p => p.email === (antigo || email)) || { nome: '', desde: new Date().toISOString() };
+    l.push({ ...velho, email: email.trim().toLowerCase(), liberado: liberado !== false, novo: false });
+    return this._gravarPessoas(l);
+  }
+  async adminExcluir(email) { await this._lag(); return this._gravarPessoas(this._pessoas().filter(p => p.email !== email)); }
   async garantirToken() { return this.signed; }
   signOut() { this.signed = false; localStorage.removeItem('af_mock_signed'); }
   async getUser() { return { email: 'demo@exemplo.com', name: 'Demo' }; }

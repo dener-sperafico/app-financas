@@ -5,6 +5,8 @@ import { SHEETS } from './schema.js?v=84';
 const TOKEN_KEY = 'af_token';
 const SESSAO_KEY = 'af_sessao';
 const OAUTH_KEY = 'af_oauth';
+const ACESSO_KEY = 'af_acesso';
+const ESPERA_KEY = 'af_aguardando';
 const ler = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -35,6 +37,25 @@ export class GoogleBackend {
     try { this.token = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null'); } catch { this.token = null; }
     this.sessao = CONFIG.AUTH_URL ? ler(SESSAO_KEY) : null;
     this.renovando = null;
+    // acesso: { admin, pendentes } vindo do servidor; aguardando: { email } enquanto o acesso não é liberado.
+    try { this.acesso = JSON.parse(ler(ACESSO_KEY) || 'null') || {}; } catch { this.acesso = {}; }
+    try { this.aguardando = JSON.parse(ler(ESPERA_KEY) || 'null'); } catch { this.aguardando = null; }
+  }
+
+  // Guarda o que o servidor disse sobre a sessão e o acesso desta pessoa.
+  _lerResposta(d) {
+    if (d.sessao) { this.sessao = d.sessao; localStorage.setItem(SESSAO_KEY, this.sessao); }
+    if (d.access_token) {
+      this.acesso = { admin: !!d.admin, pendentes: Number(d.pendentes) || 0 };
+      localStorage.setItem(ACESSO_KEY, JSON.stringify(this.acesso));
+      this._esperar(null);
+    }
+  }
+
+  _esperar(info) {
+    this.aguardando = info;
+    if (info) localStorage.setItem(ESPERA_KEY, JSON.stringify(info));
+    else localStorage.removeItem(ESPERA_KEY);
   }
 
   // ---- Login que dura (servidor em CONFIG.AUTH_URL) ----
@@ -49,6 +70,8 @@ export class GoogleBackend {
   _esquecerSessao() {
     this.sessao = null;
     localStorage.removeItem(SESSAO_KEY);
+    this.acesso = {}; localStorage.removeItem(ACESSO_KEY);
+    this._esperar(null);
   }
 
   async _servidor(rota, corpo) {
@@ -66,13 +89,32 @@ export class GoogleBackend {
     if (!this.renovando) {
       this.renovando = (async () => {
         const r = await this._servidor('/renovar', { sessao: this.sessao });
-        if (r.ok && r.dados.access_token) { this._guardarToken(r.dados); return; }
+        if (r.ok && r.dados.access_token) { this._guardarToken(r.dados); this._lerResposta(r.dados); return; }
+        if (r.status === 403 && r.dados.erro === 'aguardando') {
+          this.token = null; localStorage.removeItem(TOKEN_KEY);
+          this._esperar({ email: r.dados.email || this.aguardando?.email || '' });
+          throw new AuthError('aguardando');
+        }
         if (r.status === 401) this._esquecerSessao();
         throw new AuthError(r.dados.erro || 'renovar');
       })().finally(() => { this.renovando = null; });
     }
     return this.renovando;
   }
+
+  // ---- Admin: quem pode usar o app ----
+  async _admin(rota, corpo = {}) {
+    if (!this.sessao) throw new AuthError('sem-sessao');
+    const r = await this._servidor('/admin/' + rota, { ...corpo, sessao: this.sessao });
+    if (!r.ok) { const e = new Error(r.dados.erro || 'admin'); e.status = r.status; throw e; }
+    const pessoas = r.dados.pessoas || [];
+    this.acesso = { ...this.acesso, pendentes: pessoas.filter(p => p.novo).length };
+    localStorage.setItem(ACESSO_KEY, JSON.stringify(this.acesso));
+    return pessoas;
+  }
+  adminLista() { return this._admin('lista'); }
+  adminSalvar(email, liberado, antigo) { return this._admin('salvar', { email, liberado, antigo }); }
+  adminExcluir(email) { return this._admin('excluir', { email }); }
 
   // true se tem conexão válida (renovando pelo servidor se precisar).
   async garantirToken() {
@@ -108,9 +150,14 @@ export class GoogleBackend {
     if (q.has('error')) return { erro: q.get('error') };
     try {
       const r = await this._servidor('/entrar', { code: q.get('code'), redirect_uri: salvo.volta });
+      if (r.status === 403 && r.dados.erro === 'aguardando') {
+        if (r.dados.sessao) { this.sessao = r.dados.sessao; localStorage.setItem(SESSAO_KEY, this.sessao); }
+        this._esperar({ email: r.dados.email || '' });
+        return { aguardando: true };
+      }
       if (!r.ok || !r.dados.access_token) return { erro: r.dados.erro || 'entrar' };
       this._guardarToken(r.dados);
-      if (r.dados.sessao) { this.sessao = r.dados.sessao; localStorage.setItem(SESSAO_KEY, this.sessao); }
+      this._lerResposta(r.dados);
       return { ok: true, hash: salvo.hash };
     } catch (e) {
       return { erro: 'rede' };

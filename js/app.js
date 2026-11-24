@@ -63,7 +63,7 @@ function render() {
   const hasComposer = ['inicio', 'lancamentos'].includes(r.name);
   $('#main').className = 'shell' + (hasComposer && !desk ? ' with-composer' : '');
   $('#main').innerHTML = screen(r);
-  const showNav = !['login', 'setup'].includes(r.name);
+  const showNav = !['login', 'setup', 'aguardando'].includes(r.name);
   $('#nav').innerHTML = showNav ? nav(r) : '';
   const routeKey = r.name + (desk ? ':desk' : '');
   if (ui.lastRoute !== routeKey) {
@@ -79,6 +79,7 @@ function render() {
 document.addEventListener('focusout', () => setTimeout(() => { if (ui.pendingRender) render(); }, 50));
 
 function guard(r) {
+  if (B.aguardando) return { name: 'aguardando', arg: '', q: r.q };
   if (!S.user && r.name !== 'login') return { name: 'login', arg: '', q: r.q };
   if (S.user && !S.spreadsheet && r.name !== 'setup') return { name: 'setup', arg: 'planilha', q: r.q };
   if (S.user && r.name === 'login') return { name: S.spreadsheet ? 'inicio' : 'setup', arg: 'planilha', q: r.q };
@@ -89,6 +90,8 @@ function guard(r) {
 function screen(r) {
   switch (r.name) {
     case 'login': return scrLogin();
+    case 'aguardando': return scrAguardando();
+    case 'admin': return scrAdmin();
     case 'setup': return scrSetup(r.arg || 'planilha');
     case 'inicio': return scrInicio();
     case 'lancamentos': return scrLancamentos(r.q);
@@ -107,7 +110,7 @@ function screen(r) {
 }
 
 function nav(r) {
-  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup', 'compartilhar', 'orcamentos'].includes(r.name);
+  const naMais = ['mais', 'cartoes', 'cartao', 'categorias', 'saldo', 'setup', 'compartilhar', 'orcamentos', 'admin'].includes(r.name);
   // No celular, Futuro é aberto pela Início; a aba Início fica marcada.
   const ativo = {
     inicio: r.name === 'inicio' || r.name === 'pendentes' || (r.name === 'futuro' && !DESK()),
@@ -117,9 +120,10 @@ function nav(r) {
     mais: naMais,
     cartoes: ['cartoes', 'cartao'].includes(r.name),
     categorias: r.name === 'categorias',
-    config: ['mais', 'saldo', 'setup', 'compartilhar'].includes(r.name),
+    config: ['mais', 'saldo', 'setup', 'compartilhar', 'admin'].includes(r.name),
   };
-  const item = (chave, rotulo, href, icone, cls = '') => `<a href="${href}" class="ir ${cls} ${ativo[chave] ? 'on' : ''}" ${ativo[chave] ? 'aria-current="page"' : ''}><span class="pil">${ic(icone)}</span><span>${rotulo}</span></a>`;
+  const temPedido = B.acesso?.admin && B.acesso.pendentes > 0;
+  const item = (chave, rotulo, href, icone, cls = '') => `<a href="${href}" class="ir ${cls} ${ativo[chave] ? 'on' : ''}" ${ativo[chave] ? 'aria-current="page"' : ''}><span class="pil">${ic(icone)}${temPedido && (chave === 'mais' || chave === 'config') ? '<i class="ponto" aria-label="Pedido de acesso esperando"></i>' : ''}</span><span>${rotulo}</span></a>`;
   const q = S.queue.length;
   const estado = !S.status.online ? 'Sem internet' : S.syncing ? 'Salvando…' : q ? `${q} ${q === 1 ? 'alteração aguardando' : 'alterações aguardando'} envio` : 'Tudo salvo na planilha';
   return `<nav class="tabs" aria-label="Navegação principal">
@@ -189,6 +193,88 @@ function scrLogin() {
     <p class="small muted">Seus dados ficam numa planilha no seu Google Drive.</p>
     ${DEMO ? '<p class="small muted">Modo demonstração: nada é enviado ao Google.</p>' : ''}
   </div>`;
+}
+
+// ---------- Aguardando liberação ----------
+function scrAguardando() {
+  const email = B.aguardando?.email || '';
+  return `<div class="login">
+    <h1 class="assinatura"><img src="icons/oikon.svg" alt=""><span>Oikon</span></h1>
+    <div class="espera stack">
+      <h2>Seu acesso está em análise</h2>
+      <p class="apoio">Assim que for liberado, o Oikon abre sozinho.</p>
+      ${email ? `<p class="small muted">Conta: ${esc(email)}</p>` : ''}
+    </div>
+    <button class="btn primary block" data-act="verificar-acesso" ${ui.busy ? 'disabled' : ''}>${ic('refresh-cw')}${ui.busy ? 'Verificando…' : 'Verificar agora'}</button>
+    <button class="btn link" data-act="sair-espera">Entrar com outra conta</button>
+  </div>`;
+}
+
+// Confere se o acesso já foi liberado. Liberado: segue para a planilha (ou para o início).
+async function verificarAcesso({ silencioso = false } = {}) {
+  if (!B.aguardando || ui.verificando) return;
+  ui.verificando = true;
+  if (!silencioso) { ui.busy = true; ui.forceRender = true; render(); }
+  try {
+    await B.renovar();
+    if (!S.user) { S.setUser(await B.getUser()); ui.found = null; go('#/setup/planilha'); }
+    else { S.status.authNeeded = false; auth.falhou = false; go(S.spreadsheet ? '#/inicio' : '#/setup/planilha'); sync(); }
+    toast('Acesso liberado.', 'ok');
+  } catch (e) {
+    if (!silencioso && !(e instanceof AuthError && e.message === 'aguardando')) toast(erroAmigavel(e), 'atencao');
+  } finally {
+    ui.verificando = false; ui.busy = false; ui.forceRender = true; render();
+  }
+}
+setInterval(() => { if (B.aguardando && document.visibilityState === 'visible') verificarAcesso({ silencioso: true }); }, 60000);
+
+// ---------- Admin: quem pode usar o Oikon ----------
+const adm = { lista: null, carregando: false, erro: null, editando: null };
+async function carregarAdmin(forcar = false) {
+  if (adm.carregando || (adm.lista && !forcar)) return;
+  adm.carregando = true; adm.erro = null;
+  try { adm.lista = await B.adminLista(); } catch (e) { adm.erro = 'Não consegui carregar a lista. Confira a internet e tente de novo.'; }
+  finally { adm.carregando = false; ui.forceRender = true; render(); }
+}
+function scrAdmin() {
+  if (!B.acesso?.admin) return `<div class="top">${backBtn('#/mais')}</div><p class="apoio">Esta área é só para quem administra o Oikon.</p>`;
+  if (!adm.lista && !adm.carregando && !adm.erro) setTimeout(() => carregarAdmin(), 0);
+  const lista = (adm.lista || []).slice().sort((a, b) => (b.novo - a.novo) || a.email.localeCompare(b.email));
+  const pedidos = lista.filter(p => p.novo), demais = lista.filter(p => !p.novo);
+  const quando = d => d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+  const linha = p => {
+    if (adm.editando === p.email) {
+      return `<form class="pessoa editando" data-form="admin-editar" data-antigo="${esc(p.email)}">
+        <label class="field"><span>E-mail</span><input name="email" type="email" required value="${esc(p.email)}" autocomplete="off" autocapitalize="off"></label>
+        <div class="btns"><button type="button" class="btn" data-act="admin-cancelar">Cancelar</button><button class="btn primary">Salvar</button></div>
+      </form>`;
+    }
+    return `<div class="pessoa">
+      <div class="meio"><span class="t">${esc(p.email)}</span><span class="s">${p.novo ? `Pediu acesso em ${quando(p.desde)}` : esc(p.nome || '')}</span></div>
+      <button class="chave ${p.liberado ? 'on' : ''}" role="switch" aria-checked="${p.liberado}" aria-label="${p.liberado ? 'Liberado' : 'Bloqueado'}: ${esc(p.email)}" data-act="admin-chave" data-email="${esc(p.email)}"><i></i></button>
+      <button class="icone" data-act="admin-editar" data-email="${esc(p.email)}" aria-label="Editar ${esc(p.email)}">${ic('pencil')}</button>
+      <button class="icone" data-act="admin-excluir" data-email="${esc(p.email)}" aria-label="Excluir ${esc(p.email)}">${ic('trash-2')}</button>
+    </div>`;
+  };
+  return `${banners()}<div class="top">${backBtn('#/mais')}</div>
+    <div class="top"><h1>Admin</h1></div>
+    <p class="apoio">Quem pode usar o Oikon. Quem entra com o Google e não está liberado fica esperando.</p>
+    <div class="stack">
+      <form class="card add-pessoa" data-form="admin-adicionar">
+        <label class="field"><span>Liberar um e-mail</span><input name="email" type="email" required placeholder="e-mail da pessoa" autocomplete="off" autocapitalize="off"></label>
+        <button class="btn primary">${ic('plus')}Adicionar</button>
+      </form>
+      ${adm.erro ? aviso('err', '', adm.erro, '<button class="btn" data-act="admin-recarregar">Tentar de novo</button>') : ''}
+      ${adm.carregando && !adm.lista ? '<p class="small muted">Carregando…</p>' : ''}
+      ${pedidos.length ? `<section class="stack"><h2>Pedidos novos</h2><div class="card pessoas">${pedidos.map(linha).join('')}</div></section>` : ''}
+      ${adm.lista ? `<section class="stack"><h2>Pessoas</h2>${demais.length ? `<div class="card pessoas">${demais.map(linha).join('')}</div>` : '<p class="small muted">Ninguém na lista ainda.</p>'}</section>` : ''}
+      <p class="small muted">Você, como admin, sempre tem acesso.</p>
+    </div>`;
+}
+async function adminExec(fn, ok) {
+  try { adm.lista = await fn(); adm.editando = null; if (ok) toast(ok, 'ok'); }
+  catch (e) { toast('Não consegui salvar. Tente de novo.', 'atencao'); }
+  ui.forceRender = true; render();
 }
 
 function steps(cur) {
@@ -906,6 +992,7 @@ function scrMais() {
         ${ir('#/saldo', 'sliders-horizontal', 'Ajustar saldo real')}
         ${ir('#/orcamentos', 'calendar-range', 'Orçamentos')}
         ${ir('#/compartilhar', 'user-round', 'Usar junto com alguém')}
+        ${B.acesso?.admin ? `<a class="item" href="#/admin">${ic('shield')}<span class="meio"><span class="t">Admin</span><span class="s">Quem pode usar o Oikon</span></span>${B.acesso.pendentes ? `<span class="badge pend">${B.acesso.pendentes} ${B.acesso.pendentes === 1 ? 'pedido' : 'pedidos'}</span>` : ''}${ic('chevron-right')}</a>` : ''}
         <button class="item" data-act="tutorial" data-passo="1">${ic('circle-help')}<span class="meio"><span class="t">Como o Oikon organiza o dinheiro</span><span class="s">Orçado, previsto, realizado e a previsão do mês</span></span>${ic('chevron-right')}</button>
         <button class="item" data-act="tutorial" data-passo="6">${ic('smartphone')}<span class="meio"><span class="t">Como usar no dia a dia</span><span class="s">Inclui como colocar na tela inicial do celular</span></span>${ic('chevron-right')}</button>
       </div>
@@ -938,7 +1025,7 @@ function conteudoCompartilhar() {
         </ol>
         ${sheetLink('Abrir a planilha no Google Drive')}
       </div>
-      <p class="small muted">Enquanto o Oikon está em fase de teste, o e-mail da pessoa também precisa ser liberado por quem administra o app.</p>
+      <p class="small muted">O e-mail da pessoa também precisa ser liberado por quem administra o Oikon.</p>
     </div>`;
 }
 
@@ -2005,6 +2092,22 @@ const actions = {
       onYes: () => { B.signOut(); S.reset(); ui.found = null; closeModal(); go('#/login'); },
     });
   },
+  'verificar-acesso'() { verificarAcesso(); },
+  'sair-espera'() { B.signOut(); S.reset(); ui.found = null; ui.forceRender = true; go('#/login'); render(); },
+  'admin-recarregar'() { carregarAdmin(true); },
+  'admin-chave'(el) {
+    const p = adm.lista?.find(x => x.email === el.dataset.email); if (!p) return;
+    p.liberado = !p.liberado; p.novo = false; ui.forceRender = true; render();
+    adminExec(() => B.adminSalvar(p.email, p.liberado, p.email), p.liberado ? 'Acesso liberado.' : 'Acesso bloqueado.');
+  },
+  'admin-editar'(el) { adm.editando = el.dataset.email; ui.forceRender = true; render(); $('form[data-form="admin-editar"] input')?.focus(); },
+  'admin-cancelar'() { adm.editando = null; ui.forceRender = true; render(); },
+  'admin-excluir'(el) {
+    const email = el.dataset.email;
+    openModal({ type: 'confirmar', title: 'Excluir da lista?', yes: 'Excluir', danger: true,
+      text: `<b>${esc(email)}</b> perde o acesso. Se entrar de novo, aparece como pedido novo.`,
+      onYes: () => { closeModal(); adminExec(() => B.adminExcluir(email), 'E-mail excluído.'); } });
+  },
   'confirm-yes'() { const f = ui.modal?.onYes; if (f) f(); },
 };
 
@@ -2063,6 +2166,18 @@ document.addEventListener('change', ev => {
 });
 
 const forms = {
+  'admin-adicionar'(fd, form) {
+    const email = String(fd.get('email') || '').trim().toLowerCase();
+    if (adm.lista?.some(p => p.email === email)) { toast('Esse e-mail já está na lista.', 'atencao'); return; }
+    form.reset();
+    adminExec(() => B.adminSalvar(email, true), 'E-mail liberado.');
+  },
+  'admin-editar'(fd, form) {
+    const email = String(fd.get('email') || '').trim().toLowerCase(), antigo = form.dataset.antigo;
+    if (email !== antigo && adm.lista?.some(p => p.email === email)) { toast('Esse e-mail já está na lista.', 'atencao'); return; }
+    const p = adm.lista?.find(x => x.email === antigo);
+    adminExec(() => B.adminSalvar(email, p ? p.liberado : true, antigo), 'E-mail atualizado.');
+  },
   composer(fd, form) {
     const t = String(fd.get('t') || '').trim();
     if (!t) return;
@@ -2252,7 +2367,7 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Enter') renovarCone
 
 // ---------- Início do app ----------
 S.subscribe(() => render());
-window.addEventListener('hashchange', () => { trackNav(); ui.forceRender = true; closeModal(); render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { trackNav(); ui.forceRender = true; closeModal(); if (route().name === 'admin' && adm.lista) carregarAdmin(true); render(); window.scrollTo(0, 0); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && S.spreadsheet) {
     const last = S.s.lastSync ? Date.parse(S.s.lastSync) : 0;
@@ -2303,6 +2418,7 @@ document.addEventListener('touchend', async () => {
 async function boot() {
   // Voltando da tela do Google: termina o login antes de tudo.
   const volta = DEMO ? null : await B.voltaDoGoogle();
+  if (volta?.aguardando) { ui.forceRender = true; render(); }
   if (volta?.erro) toast(volta.erro === 'access_denied' ? 'O login foi cancelado.' : 'O login não foi concluído. Tente de novo.', 'atencao');
   if (volta?.ok) {
     auth.falhou = false; S.status.authNeeded = false;
@@ -2310,10 +2426,11 @@ async function boot() {
       try { S.setUser(await B.getUser()); ui.found = null; go('#/setup/planilha'); } catch (e) { handleError(e); }
     } else if (volta.hash) go(volta.hash);
   }
+  if (B.aguardando && !volta) verificarAcesso({ silencioso: true });
   try { await B.init(); } catch (e) { ui.bootError = 'Não foi possível carregar o login do Google. Verifique a internet e recarregue.'; }
   ui.forceRender = true; render();
   if (S.user && S.spreadsheet) {
-    if (B.hasToken() || await B.garantirToken()) sync();
+    if (B.hasToken() || await B.garantirToken()) { sync(); if (B.acesso?.admin && !DEMO) B.adminLista().then(() => { ui.forceRender = true; render(); }).catch(() => {}); }
     else { S.status.authNeeded = true; if (CONFIG.AUTH_URL && !B.temSessao()) auth.falhou = true; ui.forceRender = true; render(); }
   }
   if ('serviceWorker' in navigator && !DEMO) {
