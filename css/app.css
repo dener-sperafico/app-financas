@@ -726,3 +726,27 @@ input.chave:focus-visible { outline: 2px solid var(--cor-violeta); outline-offse
 .status-acesso.espera { background: #FDF1DC; color: #8A5A0B; }
 .paginacao { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-2); }
 .paginacao .btn[disabled] { opacity: .4; }
+
+/* Engajamento (Admin) */
+.ir-painel { margin: 0; }
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-3); }
+.kpis .kpi:first-child { grid-column: 1 / -1; }
+@media (min-width: 900px) { .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); } .kpis .kpi:first-child { grid-column: auto; } }
+.kpi { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio-g, 22px); padding: var(--esp-4); display: flex; flex-direction: column; gap: 2px; }
+.kpi .n { font-family: var(--fonte-numero); font-size: 32px; font-weight: 600; line-height: 1.1; color: var(--cor-texto); font-variant-numeric: tabular-nums; }
+.kpi .r { font-weight: 600; color: var(--cor-texto-2); }
+.kpi .s { font-size: var(--txt-legenda); color: var(--cor-texto-3); }
+.barras { display: flex; align-items: flex-end; gap: 2px; height: 140px; border-bottom: 1px solid var(--cor-borda-forte); }
+.barra { flex: 1; height: 100%; display: flex; align-items: flex-end; border-radius: 4px 4px 0 0; cursor: default; }
+.barra i { display: block; width: 100%; background: var(--cor-violeta); border-radius: 4px 4px 0 0; }
+.barra:hover i, .barra:focus-visible i { background: var(--cor-violeta-escuro); }
+.barra:focus-visible { outline: 2px solid var(--cor-ambar); outline-offset: 2px; }
+.barras-eixo { display: flex; justify-content: space-between; }
+.tabela-uso { padding: 0; overflow-x: auto; }
+.tabela-uso table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tabela-uso th, .tabela-uso td { padding: 10px 12px; text-align: right; border-top: 1px solid var(--cor-borda); white-space: nowrap; }
+.tabela-uso thead th { border-top: 0; font-size: var(--txt-legenda); color: var(--cor-texto-3); font-weight: 600; }
+.tabela-uso th:first-child, .tabela-uso td:first-child { text-align: left; }
+.tabela-uso td.em { max-width: 180px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.pessoa .meio .s + .s { margin-top: 0; }
+@media (max-width: 600px) { .tabela-uso .ult { display: none; } }

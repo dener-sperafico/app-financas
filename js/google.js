@@ -108,11 +108,19 @@ export class GoogleBackend {
     const r = await this._servidor('/admin/' + rota, { ...corpo, sessao: this.sessao });
     if (!r.ok) { const e = new Error(r.dados.erro || 'admin'); e.status = r.status; throw e; }
     const pessoas = r.dados.pessoas || [];
+    if (r.dados.painel) this.painel = r.dados.painel;
     this.acesso = { ...this.acesso, pendentes: pessoas.filter(p => p.novo).length };
     localStorage.setItem(ACESSO_KEY, JSON.stringify(this.acesso));
     return pessoas;
   }
   adminLista() { return this._admin('lista'); }
+
+  // Contadores de uso (aberturas e lançamentos por dia). Só envia com sessão do login novo.
+  async registrarUso(dias) {
+    if (!this.sessao) return false;
+    const r = await this._servidor('/uso', { sessao: this.sessao, dias });
+    return r.ok;
+  }
   adminSalvar(email, liberado, antigo) { return this._admin('salvar', { email, liberado, antigo }); }
   adminExcluir(email) { return this._admin('excluir', { email }); }
 

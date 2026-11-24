@@ -31,15 +31,25 @@ export class MockBackend {
     ];
   }
   _gravarPessoas(l) { localStorage.setItem('af_mock_pessoas', JSON.stringify(l)); return l; }
-  async adminLista() { await this._lag(); return this._pessoas(); }
+  async adminLista() {
+    await this._lag();
+    // Uso de mentira para ver o Admin e o painel de engajamento na demonstração.
+    const hoje = new Date();
+    const dia = n => { const d = new Date(hoje); d.setDate(d.getDate() - n); return d.toLocaleDateString('sv-SE'); };
+    const pessoas = this._pessoas().map((p, i) => ({ ...p, uso: p.novo ? { ultimo: '', dias7: 0, dias30: 0, aberturas30: 0, lancamentos30: 0 } : { ultimo: new Date(hoje - (i % 9) * 26 * 3600e3).toISOString(), dias7: Math.max(0, 7 - (i % 8)), dias30: Math.max(1, 24 - i * 2), aberturas30: Math.max(1, 60 - i * 5), lancamentos30: Math.max(0, 80 - i * 7) } }));
+    this.painel = { hoje: dia(0), serie: Array.from({ length: 30 }, (_, i) => ({ dia: dia(29 - i), ativos: 2 + ((i * 7) % 5) + (i > 20 ? 2 : 0), aberturas: 6 + ((i * 5) % 9), lancamentos: 4 + ((i * 3) % 7) })) };
+    return pessoas;
+  }
+  async registrarUso() { return true; }
   async adminSalvar(email, liberado, antigo) {
     await this._lag();
     const l = this._pessoas().filter(p => p.email !== (antigo || email));
     const velho = this._pessoas().find(p => p.email === (antigo || email)) || { nome: '', desde: new Date().toISOString() };
     l.push({ ...velho, email: email.trim().toLowerCase(), liberado: liberado !== false, novo: false });
-    return this._gravarPessoas(l);
+    this._gravarPessoas(l);
+    return this.adminLista();
   }
-  async adminExcluir(email) { await this._lag(); return this._gravarPessoas(this._pessoas().filter(p => p.email !== email)); }
+  async adminExcluir(email) { this._gravarPessoas(this._pessoas().filter(p => p.email !== email)); return this.adminLista(); }
   async garantirToken() { return this.signed; }
   signOut() { this.signed = false; localStorage.removeItem('af_mock_signed'); }
   async getUser() { return { email: 'demo@exemplo.com', name: 'Demo' }; }

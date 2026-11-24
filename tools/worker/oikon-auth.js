@@ -87,6 +87,15 @@ export default {
         return json({ ...resp, ...(s.e ? await extras(env, s.e) : {}) });
       }
 
+      if (rota === '/uso') {
+        // Contadores de uso por dia (aberturas e lançamentos). Nunca valores ou descrições.
+        const s = await abrirSessao(env, corpo.sessao);
+        if (!s || !s.e) return json({ erro: 'sessao' }, 401);
+        if (!env.ACESSOS) return json({ ok: true });
+        await registrarUso(env, s.e, corpo.dias);
+        return json({ ok: true });
+      }
+
       if (rota === '/sair') {
         // Não revoga no Google: isso derrubaria o login dos outros aparelhos da mesma conta.
         // O aparelho apaga a própria sessão; para revogar tudo, myaccount.google.com/permissions.
@@ -98,7 +107,7 @@ export default {
         if (!s || !s.e || !ehAdmin(env, s.e)) return json({ erro: 'admin' }, 403);
         if (!env.ACESSOS) return json({ erro: 'sem-lista' }, 500);
 
-        if (rota === '/admin/lista') return json({ pessoas: await listar(env) });
+        if (rota === '/admin/lista') return json(await listarComUso(env));
 
         if (rota === '/admin/salvar') {
           const email = limpar(corpo.email);
@@ -155,6 +164,60 @@ async function listar(env) {
   return out;
 }
 
+// ---- Uso (engajamento) ----
+// Uma chave "u:<email>" com { ultimo, dias: { 'AAAA-MM-DD': { a: aberturas, l: lançamentos } } }, 90 dias.
+const hojeSP = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+const diaMenos = (dia, n) => { const d = new Date(dia + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+
+async function registrarUso(env, email, dias) {
+  const atual = (await env.ACESSOS.get('u:' + email, 'json')) || { dias: {} };
+  const limite = diaMenos(hojeSP(), 90);
+  for (const [dia, c] of Object.entries(dias || {})) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || dia < limite) continue;
+    const a = Math.min(Math.max(Number(c?.a) || 0, 0), 500), l = Math.min(Math.max(Number(c?.l) || 0, 0), 500);
+    if (!a && !l) continue;
+    const d = atual.dias[dia] || { a: 0, l: 0 };
+    atual.dias[dia] = { a: d.a + a, l: d.l + l };
+  }
+  for (const dia of Object.keys(atual.dias)) if (dia < limite) delete atual.dias[dia];
+  atual.ultimo = new Date().toISOString();
+  await env.ACESSOS.put('u:' + email, JSON.stringify(atual));
+}
+
+async function listarComUso(env) {
+  const pessoas = await listar(env);
+  const hoje = hojeSP(), d7 = diaMenos(hoje, 6), d30 = diaMenos(hoje, 29);
+  const serie = Array.from({ length: 30 }, (_, i) => ({ dia: diaMenos(hoje, 29 - i), ativos: 0, aberturas: 0, lancamentos: 0 }));
+  const porDia = Object.fromEntries(serie.map(x => [x.dia, x]));
+  const usos = {};
+  let cursor;
+  do {
+    const r = await env.ACESSOS.list({ prefix: 'u:', cursor });
+    for (const k of r.keys) usos[k.name.slice(2)] = await env.ACESSOS.get(k.name, 'json');
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor);
+  const resumo = u => {
+    const dias = Object.entries(u?.dias || {});
+    const em30 = dias.filter(([d]) => d >= d30);
+    return {
+      ultimo: u?.ultimo || '',
+      dias7: dias.filter(([d]) => d >= d7).length,
+      dias30: em30.length,
+      aberturas30: em30.reduce((t, [, c]) => t + c.a, 0),
+      lancamentos30: em30.reduce((t, [, c]) => t + c.l, 0),
+    };
+  };
+  for (const [email, u] of Object.entries(usos)) {
+    for (const [dia, c] of Object.entries(u?.dias || {})) {
+      const x = porDia[dia]; if (!x) continue;
+      x.ativos += 1; x.aberturas += c.a; x.lancamentos += c.l;
+    }
+    if (!pessoas.some(p => p.email === email)) pessoas.push({ email, nome: '', liberado: ehAdmin(env, email), novo: false, desde: '', admin: ehAdmin(env, email) });
+  }
+  for (const p of pessoas) p.uso = resumo(usos[p.email]);
+  return { pessoas, painel: { hoje, serie } };
+}
+
 // Retorna 'liberado' ou 'aguardando'. Quem não está na lista vira um pedido novo (e o admin é avisado).
 async function situacao(env, ctx, email, nome) {
   if (!env.ACESSOS || ehAdmin(env, email)) return 'liberado';
@@ -186,7 +249,6 @@ async function jaUsava(env, email, accessToken) {
 
 // Admin recebe junto com o token se é admin e quantos pedidos novos esperam.
 async function extras(env, email) {
-  console.log('acesso', email, ehAdmin(env, email), !!env.ACESSOS);
   if (!ehAdmin(env, email) || !env.ACESSOS) return {};
   const pessoas = await listar(env);
   return { admin: true, pendentes: pessoas.filter(p => p.novo).length };

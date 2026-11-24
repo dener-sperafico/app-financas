@@ -91,7 +91,7 @@ function screen(r) {
   switch (r.name) {
     case 'login': return scrLogin();
     case 'aguardando': return scrAguardando();
-    case 'admin': return scrAdmin();
+    case 'admin': return r.arg === 'uso' ? scrAdminUso() : scrAdmin();
     case 'setup': return scrSetup(r.arg || 'planilha');
     case 'inicio': return scrInicio();
     case 'lancamentos': return scrLancamentos(r.q);
@@ -234,7 +234,7 @@ const ADM_POR_PAGINA = 10;
 async function carregarAdmin(forcar = false) {
   if (adm.carregando || (adm.lista && !forcar)) return;
   adm.carregando = true; adm.erro = null;
-  try { adm.lista = await B.adminLista(); } catch (e) { adm.erro = 'Não consegui carregar a lista. Confira a internet e tente de novo.'; }
+  try { adm.lista = await B.adminLista(); adm.painel = B.painel || null; } catch (e) { adm.erro = 'Não consegui carregar a lista. Confira a internet e tente de novo.'; }
   finally { adm.carregando = false; ui.forceRender = true; render(); }
 }
 function scrAdmin() {
@@ -255,16 +255,17 @@ function scrAdmin() {
       </form>`;
     }
     return `<div class="pessoa">
-      <div class="meio"><span class="t" title="${esc(p.email)}">${esc(p.email)}</span><span class="s">${p.novo ? `Pediu acesso em ${quando(p.desde)}` : esc(p.nome || '')}</span></div>
-      <span class="status-acesso ${p.novo ? 'espera' : p.liberado ? 'ativo' : 'inativo'}">${p.novo ? 'Aguardando' : p.liberado ? 'Ativo' : 'Inativo'}</span>
-      <button class="icone" data-act="admin-editar" data-email="${esc(p.email)}" aria-label="Editar ${esc(p.email)}">${ic('pencil')}</button>
-      <button class="icone" data-act="admin-excluir" data-email="${esc(p.email)}" aria-label="Excluir ${esc(p.email)}">${ic('trash-2')}</button>
+      <div class="meio"><span class="t" title="${esc(p.email)}">${esc(p.email)}</span>${p.novo ? `<span class="s">Pediu acesso em ${quando(p.desde)}</span>` : linhaUso(p.uso)}</div>
+      <span class="status-acesso ${p.novo ? 'espera' : p.admin ? 'ativo' : p.liberado ? 'ativo' : 'inativo'}">${p.novo ? 'Aguardando' : p.admin ? 'Admin' : p.liberado ? 'Ativo' : 'Inativo'}</span>
+      ${p.admin ? '' : `<button class="icone" data-act="admin-editar" data-email="${esc(p.email)}" aria-label="Editar ${esc(p.email)}">${ic('pencil')}</button>
+      <button class="icone" data-act="admin-excluir" data-email="${esc(p.email)}" aria-label="Excluir ${esc(p.email)}">${ic('trash-2')}</button>`}
     </div>`;
   };
   return `${banners()}<div class="top">${backBtn('#/mais')}</div>
     <div class="top"><h1>Admin</h1></div>
     <p class="apoio">Quem pode usar o Oikon. Quem entra com o Google e não está liberado fica esperando.</p>
     <div class="stack">
+      <a class="card item ir-painel" href="#/admin/uso">${ic('chart-no-axes-column')}<span class="meio"><span class="t">Engajamento</span><span class="s">${adm.painel ? `${ativosHoje()} ${ativosHoje() === 1 ? 'pessoa ativa' : 'pessoas ativas'} hoje` : 'Quem usa, quanto e quando'}</span></span>${ic('chevron-right')}</a>
       <form class="card add-pessoa" data-form="admin-adicionar">
         <label class="field"><span>Liberar um e-mail</span><input name="email" type="email" required placeholder="e-mail da pessoa" autocomplete="off" autocapitalize="off"></label>
         <button class="btn primary">${ic('plus')}Adicionar</button>
@@ -280,8 +281,67 @@ function scrAdmin() {
       <p class="small muted">Você, como admin, sempre tem acesso.</p>
     </div>`;
 }
+// ---------- Uso por pessoa e painel de engajamento ----------
+function quandoFoi(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), hoje = new Date(), ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === hoje.toDateString()) return `hoje, ${hora}`;
+  if (d.toDateString() === ontem.toDateString()) return `ontem, ${hora}`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+function linhaUso(u) {
+  if (!u || !u.ultimo) return '<span class="s">Ainda sem uso registrado</span>';
+  return `<span class="s">Último acesso: ${quandoFoi(u.ultimo)}</span>
+    <span class="s">30 dias: ${u.dias30} ${u.dias30 === 1 ? 'dia ativo' : 'dias ativos'} · ${u.aberturas30} abert. · ${u.lancamentos30} lanç.</span>`;
+}
+const ativosHoje = () => adm.painel?.serie?.at(-1)?.ativos || 0;
+
+function scrAdminUso() {
+  if (!B.acesso?.admin) return `<div class="top">${backBtn('#/mais')}</div><p class="apoio">Esta área é só para quem administra o Oikon.</p>`;
+  if (!adm.lista && !adm.carregando && !adm.erro) setTimeout(() => carregarAdmin(), 0);
+  const top = `${banners()}<div class="top">${backBtn('#/admin')}</div><div class="top"><h1>Engajamento</h1></div>`;
+  if (!adm.lista || !adm.painel) return `${top}${adm.erro ? aviso('err', '', adm.erro, '<button class="btn" data-act="admin-recarregar">Tentar de novo</button>') : '<p class="small muted">Carregando…</p>'}`;
+  const pessoas = adm.lista.filter(p => p.liberado || p.admin);
+  const comUso = pessoas.filter(p => p.uso?.ultimo);
+  const serie = adm.painel.serie;
+  const ativos7 = pessoas.filter(p => p.uso?.dias7 > 0).length, ativos30 = pessoas.filter(p => p.uso?.dias30 > 0).length;
+  const abert = serie.reduce((t, d) => t + d.aberturas, 0), lanc = serie.reduce((t, d) => t + d.lancamentos, 0);
+  const max = Math.max(1, ...serie.map(d => d.ativos));
+  const diaCurto = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const tile = (n, rot, sub) => `<div class="kpi"><span class="n">${n}</span><span class="r">${rot}</span>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
+  const ranking = comUso.slice().sort((a, b) => (b.uso.dias30 - a.uso.dias30) || (b.uso.lancamentos30 - a.uso.lancamentos30));
+  const semUso = pessoas.filter(p => !p.uso?.ultimo);
+  return `${top}
+    <p class="apoio">Uso dos últimos 30 dias. Conta só aberturas do app e quantos lançamentos cada pessoa fez, nunca valores.</p>
+    <div class="stack">
+      <div class="kpis">
+        ${tile(ativosHoje(), 'ativas hoje', `de ${pessoas.length} liberadas`)}
+        ${tile(ativos7, 'ativas em 7 dias')}
+        ${tile(ativos30, 'ativas em 30 dias')}
+        ${tile(abert, 'aberturas', '30 dias')}
+        ${tile(lanc, 'lançamentos', '30 dias')}
+      </div>
+      <section class="card stack">
+        <h2>Pessoas ativas por dia</h2>
+        <div class="barras" role="img" aria-label="Pessoas ativas por dia nos últimos 30 dias; máximo de ${max}">
+          ${serie.map(d => `<div class="barra" tabindex="0" title="${diaCurto(d.dia)}: ${d.ativos} ${d.ativos === 1 ? 'pessoa' : 'pessoas'} · ${d.aberturas} aberturas · ${d.lancamentos} lançamentos"><i style="height:${d.ativos ? Math.max(4, d.ativos / max * 100) : 0}%"></i></div>`).join('')}
+        </div>
+        <div class="barras-eixo small muted"><span>${diaCurto(serie[0].dia)}</span><span>hoje</span></div>
+      </section>
+      <section class="stack">
+        <h2>Por pessoa</h2>
+        ${ranking.length ? `<div class="card tabela-uso"><table>
+          <thead><tr><th>Pessoa</th><th>Dias</th><th>Abert.</th><th>Lanç.</th><th class="ult">Último acesso</th></tr></thead>
+          <tbody>${ranking.map(p => `<tr><td class="em" title="${esc(p.email)}">${esc(p.email.split('@')[0])}</td><td>${p.uso.dias30}</td><td>${p.uso.aberturas30}</td><td>${p.uso.lancamentos30}</td><td class="ult">${quandoFoi(p.uso.ultimo)}</td></tr>`).join('')}</tbody>
+        </table></div>` : '<p class="small muted">Ainda sem uso registrado. Os números começam a aparecer conforme as pessoas abrem o app.</p>'}
+        ${semUso.length ? `<p class="small muted">Sem uso registrado: ${semUso.map(p => esc(p.email.split('@')[0])).join(', ')}.</p>` : ''}
+      </section>
+    </div>`;
+}
+
 async function adminExec(fn, ok) {
-  try { adm.lista = await fn(); adm.editando = null; if (ok) toast(ok, 'ok'); }
+  try { adm.lista = await fn(); adm.painel = B.painel || adm.painel; adm.editando = null; if (ok) toast(ok, 'ok'); }
   catch (e) { toast('Não consegui salvar. Tente de novo.', 'atencao'); }
   ui.forceRender = true; render();
 }
@@ -2201,6 +2261,7 @@ const forms = {
       if (m.type === 'novo') { m.aberto = e.valor ? 'valor' : e.categoria ? 'categoria' : e.forma ? 'forma' : e.vezes ? 'repeticao' : m.aberto; m._focar = true; }
       renderModal(); return;
     }
+    if (m.type === 'novo') contarUso('l');
     salvarDraft(m, submitter?.value || 'salvar');
   },
   excluir(fd) {
@@ -2382,6 +2443,36 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ---------- Contadores de uso ----------
+// Guarda no aparelho quantas vezes o app foi aberto e quantos lançamentos foram feitos, por dia,
+// e envia ao servidor de login. Nunca envia valores, descrições ou categorias.
+const USO_KEY = 'af_uso';
+const hojeLocal = () => new Date().toLocaleDateString('sv-SE');
+function contarUso(campo) {
+  if (DEMO) return;
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem(USO_KEY) || '{}'); } catch { p = {}; }
+  const d = p[hojeLocal()] || { a: 0, l: 0 };
+  d[campo] += 1; p[hojeLocal()] = d;
+  try { localStorage.setItem(USO_KEY, JSON.stringify(p)); } catch { /* ignora */ }
+}
+let enviandoUso = false;
+async function enviarUso() {
+  if (DEMO || enviandoUso || !B.temSessao?.()) return;
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem(USO_KEY) || '{}'); } catch { p = {}; }
+  if (!Object.keys(p).length) return;
+  enviandoUso = true;
+  try { if (await B.registrarUso(p)) localStorage.removeItem(USO_KEY); } catch { /* tenta de novo depois */ }
+  finally { enviandoUso = false; }
+}
+let escondidoEm = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { escondidoEm = Date.now(); enviarUso(); return; }
+  // Voltar depois de 30 minutos fora conta como nova abertura.
+  if (escondidoEm && Date.now() - escondidoEm > 30 * 60000 && S.spreadsheet) { contarUso('a'); enviarUso(); }
+});
+
 // ---------- Puxar para atualizar (celular) ----------
 // Com a tela no topo, arrastar para baixo busca a planilha na hora.
 const ptr = { y0: null, dy: 0, ativo: false };
@@ -2439,6 +2530,7 @@ async function boot() {
   try { await B.init(); } catch (e) { ui.bootError = 'Não foi possível carregar o login do Google. Verifique a internet e recarregue.'; }
   ui.forceRender = true; render();
   if (S.user && S.spreadsheet) {
+    contarUso('a'); setTimeout(enviarUso, 3000);
     if (B.hasToken() || await B.garantirToken()) { sync(); if (B.acesso?.admin && !DEMO) B.adminLista().then(() => { ui.forceRender = true; render(); }).catch(() => {}); }
     else { S.status.authNeeded = true; if (CONFIG.AUTH_URL && !B.temSessao()) auth.falhou = true; ui.forceRender = true; render(); }
   }
