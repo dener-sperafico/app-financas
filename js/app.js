@@ -1,15 +1,15 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=85';
-import { CONFIG } from './config.js?v=85';
-import { MockBackend } from './mock.js?v=85';
-import { Store } from './store.js?v=85';
-import { objToRow } from './schema.js?v=85';
-import * as M from './model.js?v=85';
-import { interpretar, previstoParecido } from './parser.js?v=85';
-import { ic, icCategoria } from './icones.js?v=85';
+import { GoogleBackend, AuthError } from './google.js?v=86';
+import { CONFIG } from './config.js?v=86';
+import { MockBackend } from './mock.js?v=86';
+import { Store } from './store.js?v=86';
+import { objToRow } from './schema.js?v=86';
+import * as M from './model.js?v=86';
+import { interpretar, previstoParecido } from './parser.js?v=86';
+import { ic, icCategoria } from './icones.js?v=86';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=85';
+} from './util.js?v=86';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -2427,6 +2427,8 @@ async function boot() {
     } else if (volta.hash) go(volta.hash);
   }
   if (B.aguardando && !volta) verificarAcesso({ silencioso: true });
+  // Primeira abertura depois do controle de acesso: busca no servidor se esta conta é admin.
+  else if (!DEMO && B.temSessao() && !('admin' in (B.acesso || {}))) B.renovar().then(() => { ui.forceRender = true; render(); }).catch(() => {});
   try { await B.init(); } catch (e) { ui.bootError = 'Não foi possível carregar o login do Google. Verifique a internet e recarregue.'; }
   ui.forceRender = true; render();
   if (S.user && S.spreadsheet) {
@@ -2441,7 +2443,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=85', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=86', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
