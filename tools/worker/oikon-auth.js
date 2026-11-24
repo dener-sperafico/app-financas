@@ -8,7 +8,8 @@
 //   CLIENT_SECRET        (segredo) Chave secreta do cliente OAuth
 //   ORIGENS              (texto)   origens permitidas, separadas por vírgula
 //   ADMIN_EMAIL          (texto)   e-mail de quem libera o acesso
-//   LIBERADOS_INICIAIS   (texto)   e-mails já liberados no primeiro uso, separados por vírgula (opcional)
+//   LIBERADOS_INICIAIS   (texto)   e-mails já liberados no primeiro uso, separados por vírgula (opcional).
+//                                  Quem já tem planilha do Oikon no Drive também entra liberado.
 //   RESEND_KEY           (segredo) chave do Resend para avisar pedidos por e-mail (opcional)
 // Ligação (binding) KV:
 //   ACESSOS              lista de pessoas. Sem ela, o servidor não restringe ninguém.
@@ -55,6 +56,8 @@ export default {
         const quemE = await quem(r.dados.access_token);
         if (!quemE) return json({ erro: 'email' }, 401);
         const sessao = r.dados.refresh_token ? await cifrar(env, JSON.stringify({ rt: r.dados.refresh_token, e: quemE.email })) : undefined;
+        // Quem já tem uma planilha criada pelo Oikon já usava o app: continua liberado.
+        if (await jaUsava(env, quemE.email, r.dados.access_token)) await garantirLiberado(env, quemE.email, quemE.nome);
         const st = await situacao(env, ctx, quemE.email, quemE.nome);
         if (st !== 'liberado') return json({ erro: 'aguardando', email: quemE.email, sessao }, 403);
         return json({ access_token: r.dados.access_token, expires_in: r.dados.expires_in, sessao, ...(await extras(env, quemE.email)) });
@@ -167,6 +170,19 @@ async function garantirLiberado(env, email, nome) {
   if (!env.ACESSOS) return;
   const { metadata } = await env.ACESSOS.getWithMetadata('p:' + email);
   if (!metadata) await gravar(env, email, { l: true, n: false, nome });
+}
+
+// Só consulta o Drive para quem ainda não está na lista.
+async function jaUsava(env, email, accessToken) {
+  if (!env.ACESSOS) return false;
+  const { metadata } = await env.ACESSOS.getWithMetadata('p:' + email);
+  if (metadata) return false;
+  const q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&pageSize=1&fields=files(id)`, {
+    headers: { Authorization: 'Bearer ' + accessToken },
+  });
+  if (!res.ok) return false;
+  return ((await res.json()).files || []).length > 0;
 }
 
 // Admin recebe junto com o token se é admin e quantos pedidos novos esperam.
