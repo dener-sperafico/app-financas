@@ -229,7 +229,8 @@ async function verificarAcesso({ silencioso = false } = {}) {
 setInterval(() => { if (B.aguardando && document.visibilityState === 'visible') verificarAcesso({ silencioso: true }); }, 60000);
 
 // ---------- Admin: quem pode usar o Oikon ----------
-const adm = { lista: null, carregando: false, erro: null, editando: null };
+const adm = { lista: null, carregando: false, erro: null, editando: null, pagina: 0 };
+const ADM_POR_PAGINA = 10;
 async function carregarAdmin(forcar = false) {
   if (adm.carregando || (adm.lista && !forcar)) return;
   adm.carregando = true; adm.erro = null;
@@ -241,17 +242,21 @@ function scrAdmin() {
   if (!adm.lista && !adm.carregando && !adm.erro) setTimeout(() => carregarAdmin(), 0);
   const lista = (adm.lista || []).slice().sort((a, b) => (b.novo - a.novo) || a.email.localeCompare(b.email));
   const pedidos = lista.filter(p => p.novo), demais = lista.filter(p => !p.novo);
+  const paginas = Math.max(1, Math.ceil(demais.length / ADM_POR_PAGINA));
+  adm.pagina = Math.min(adm.pagina, paginas - 1);
+  const ini = adm.pagina * ADM_POR_PAGINA, pagina = demais.slice(ini, ini + ADM_POR_PAGINA);
   const quando = d => d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
   const linha = p => {
     if (adm.editando === p.email) {
       return `<form class="pessoa editando" data-form="admin-editar" data-antigo="${esc(p.email)}">
         <label class="field"><span>E-mail</span><input name="email" type="email" required value="${esc(p.email)}" autocomplete="off" autocapitalize="off"></label>
+        <label class="linha-chave"><span><span class="t">Acesso liberado</span><span class="s">Só muda depois de salvar</span></span><input type="checkbox" name="liberado" class="chave" role="switch" ${p.liberado ? 'checked' : ''}></label>
         <div class="btns"><button type="button" class="btn" data-act="admin-cancelar">Cancelar</button><button class="btn primary">Salvar</button></div>
       </form>`;
     }
     return `<div class="pessoa">
       <div class="meio"><span class="t" title="${esc(p.email)}">${esc(p.email)}</span><span class="s">${p.novo ? `Pediu acesso em ${quando(p.desde)}` : esc(p.nome || '')}</span></div>
-      <button class="chave ${p.liberado ? 'on' : ''}" role="switch" aria-checked="${p.liberado}" aria-label="${p.liberado ? 'Liberado' : 'Bloqueado'}: ${esc(p.email)}" data-act="admin-chave" data-email="${esc(p.email)}"><i></i></button>
+      <span class="status-acesso ${p.novo ? 'espera' : p.liberado ? 'ativo' : 'inativo'}">${p.novo ? 'Aguardando' : p.liberado ? 'Ativo' : 'Inativo'}</span>
       <button class="icone" data-act="admin-editar" data-email="${esc(p.email)}" aria-label="Editar ${esc(p.email)}">${ic('pencil')}</button>
       <button class="icone" data-act="admin-excluir" data-email="${esc(p.email)}" aria-label="Excluir ${esc(p.email)}">${ic('trash-2')}</button>
     </div>`;
@@ -267,7 +272,11 @@ function scrAdmin() {
       ${adm.erro ? aviso('err', '', adm.erro, '<button class="btn" data-act="admin-recarregar">Tentar de novo</button>') : ''}
       ${adm.carregando && !adm.lista ? '<p class="small muted">Carregando…</p>' : ''}
       ${pedidos.length ? `<section class="stack"><h2>Pedidos novos</h2><div class="card pessoas">${pedidos.map(linha).join('')}</div></section>` : ''}
-      ${adm.lista ? `<section class="stack"><h2>Pessoas</h2>${demais.length ? `<div class="card pessoas">${demais.map(linha).join('')}</div>` : '<p class="small muted">Ninguém na lista ainda.</p>'}</section>` : ''}
+      ${adm.lista ? `<section class="stack"><h2>Pessoas <span class="muted small">${demais.length}</span></h2>${demais.length ? `<div class="card pessoas">${pagina.map(linha).join('')}</div>${paginas > 1 ? `<nav class="paginacao" aria-label="Páginas da lista">
+        <button class="btn" data-act="admin-pagina" data-dir="-1" ${adm.pagina === 0 ? 'disabled' : ''}>${ic('chevron-left')}Anterior</button>
+        <span class="small muted">${ini + 1}–${ini + pagina.length} de ${demais.length}</span>
+        <button class="btn" data-act="admin-pagina" data-dir="1" ${adm.pagina >= paginas - 1 ? 'disabled' : ''}>Próxima${ic('chevron-right')}</button>
+      </nav>` : ''}` : '<p class="small muted">Ninguém na lista ainda.</p>'}</section>` : ''}
       <p class="small muted">Você, como admin, sempre tem acesso.</p>
     </div>`;
 }
@@ -2095,11 +2104,7 @@ const actions = {
   'verificar-acesso'() { verificarAcesso(); },
   'sair-espera'() { B.signOut(); S.reset(); ui.found = null; ui.forceRender = true; go('#/login'); render(); },
   'admin-recarregar'() { carregarAdmin(true); },
-  'admin-chave'(el) {
-    const p = adm.lista?.find(x => x.email === el.dataset.email); if (!p) return;
-    p.liberado = !p.liberado; p.novo = false; ui.forceRender = true; render();
-    adminExec(() => B.adminSalvar(p.email, p.liberado, p.email), p.liberado ? 'Acesso liberado.' : 'Acesso bloqueado.');
-  },
+  'admin-pagina'(el) { adm.pagina = Math.max(0, adm.pagina + Number(el.dataset.dir)); adm.editando = null; ui.forceRender = true; render(); $('.paginacao')?.scrollIntoView({ block: 'nearest' }); },
   'admin-editar'(el) { adm.editando = el.dataset.email; ui.forceRender = true; render(); $('form[data-form="admin-editar"] input')?.focus(); },
   'admin-cancelar'() { adm.editando = null; ui.forceRender = true; render(); },
   'admin-excluir'(el) {
@@ -2176,7 +2181,9 @@ const forms = {
     const email = String(fd.get('email') || '').trim().toLowerCase(), antigo = form.dataset.antigo;
     if (email !== antigo && adm.lista?.some(p => p.email === email)) { toast('Esse e-mail já está na lista.', 'atencao'); return; }
     const p = adm.lista?.find(x => x.email === antigo);
-    adminExec(() => B.adminSalvar(email, p ? p.liberado : true, antigo), 'E-mail atualizado.');
+    const liberado = fd.get('liberado') === 'on';
+    const mudou = !p || p.liberado !== liberado || p.novo;
+    adminExec(() => B.adminSalvar(email, liberado, antigo), mudou ? (liberado ? 'Acesso liberado.' : 'Acesso desativado.') : 'E-mail atualizado.');
   },
   composer(fd, form) {
     const t = String(fd.get('t') || '').trim();
