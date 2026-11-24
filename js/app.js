@@ -1,15 +1,15 @@
 // Oikon — telas e navegação.
-import { GoogleBackend, AuthError } from './google.js?v=87';
-import { CONFIG } from './config.js?v=87';
-import { MockBackend } from './mock.js?v=87';
-import { Store } from './store.js?v=87';
-import { objToRow } from './schema.js?v=87';
-import * as M from './model.js?v=87';
-import { interpretar, previstoParecido } from './parser.js?v=87';
-import { ic, icCategoria } from './icones.js?v=87';
+import { GoogleBackend, AuthError } from './google.js?v=88';
+import { CONFIG } from './config.js?v=88';
+import { MockBackend } from './mock.js?v=88';
+import { Store } from './store.js?v=88';
+import { objToRow } from './schema.js?v=88';
+import * as M from './model.js?v=88';
+import { interpretar, previstoParecido } from './parser.js?v=88';
+import { ic, icCategoria } from './icones.js?v=88';
 import {
   formatarReais, todayISO, monthOf, monthName, lastDayOfMonth, dateOf, parseISO, addDays, monthShort, fmtDate, money, esc, parseMoney, addMonthKey, daysBetween, round2, uid, slug, normalize,
-} from './util.js?v=87';
+} from './util.js?v=88';
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo');
@@ -2542,7 +2542,7 @@ async function boot() {
       if (!tinha || recarregou || (S.queue.length && !navigator.onLine)) return;
       recarregou = true; location.reload();
     });
-    navigator.serviceWorker.register('./sw.js?v=87', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.register('./sw.js?v=88', { updateViaCache: 'none' }).catch(() => {});
   }
 }
 boot();
