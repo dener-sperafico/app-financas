@@ -122,14 +122,14 @@ export default {
           }
           const liberado = ehAdmin(env, email) ? true : corpo.liberado !== false;
           await gravar(env, email, { ...base, l: liberado, n: false, t: base.t || agora() });
-          return json({ pessoas: await listar(env) });
+          return json(await listarComUso(env));
         }
 
         if (rota === '/admin/excluir') {
           const email = limpar(corpo.email);
           if (!email || ehAdmin(env, email)) return json({ erro: 'email' }, 400);
           await env.ACESSOS.delete('p:' + email);
-          return json({ pessoas: await listar(env) });
+          return json(await listarComUso(env));
         }
       }
     } catch {
